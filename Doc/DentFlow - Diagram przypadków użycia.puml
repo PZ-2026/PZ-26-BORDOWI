@@ -1,0 +1,150 @@
+@startuml DentFlow - Diagram przypadków użycia
+
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor<<owner>> #FFD700
+  BackgroundColor<<reception>> #87CEEB
+  BackgroundColor<<dentist>> #98FB98
+  BackgroundColor<<assistant>> #DDA0DD
+  BackgroundColor<<patient>> #FFB6C1
+  BackgroundColor<<common>> #E8E8E8
+  BorderColor DarkSlateGray
+  FontSize 11
+}
+skinparam actor {
+  BackgroundColor LightYellow
+  BorderColor DarkOrange
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #999999
+}
+skinparam ArrowThickness 1
+
+top to bottom direction
+
+actor "Owner" as Owner #Gold
+actor "Recepcja" as Reception #LightBlue
+actor "Dentysta" as Dentist #LightGreen
+actor "Asystentka" as Assistant #Plum
+actor "Pacjent" as Patient #LightPink
+
+Owner -[hidden]right-> Reception
+Reception -[hidden]right-> Dentist
+Dentist -[hidden]right-> Assistant
+Assistant -[hidden]right-> Patient
+
+' --- SYSTEM ---
+rectangle "DentFlow" {
+
+  package "Zarządzanie\ngabinetem" as PKG_Clinic #FFD700 {
+    usecase "Zarejestruj gabinet" as UC_RegClinic <<owner>>
+    usecase "Zarządzaj lokalizacjami" as UC_Locations <<owner>>
+    usecase "Zarządzaj personelem" as UC_Staff <<owner>>
+    usecase "Zarządzaj zasobami" as UC_Rooms <<owner>>
+    usecase "Dodaj użytkownika" as UC_AddUser <<owner>>
+  }
+
+  package "Pacjenci" as PKG_Patient #87CEEB {
+    usecase "Wyszukaj pacjenta" as UC_SearchPatient <<reception>>
+    usecase "Dodaj pacjenta" as UC_AddPatient <<reception>>
+    usecase "Edytuj pacjenta" as UC_EditPatient <<reception>>
+    usecase "Historia wizyt" as UC_PatientHistory <<dentist>>
+  }
+
+  package "Wizyty" as PKG_Appointments #98FB98 {
+    usecase "Kalendarz wizyt" as UC_ViewAppointments <<dentist>>
+    usecase "Zarezerwuj wizytę" as UC_BookAppointment <<reception>>
+    usecase "Edytuj wizytę" as UC_EditAppointment <<reception>>
+    usecase "Anuluj wizytę" as UC_CancelAppointment <<reception>>
+    usecase "Zmień status" as UC_ChangeStatus <<dentist>>
+  }
+
+  package "Grafik pracy" as PKG_Schedule #98FB98 {
+    usecase "Przeglądaj grafik" as UC_ViewSchedule <<dentist>>
+    usecase "Dodaj slot" as UC_AddSlot <<dentist>>
+    usecase "Dodaj blokadę" as UC_AddBlocker <<dentist>>
+  }
+
+  package "Portal pacjenta" as PKG_PatPortal #FFB6C1 {
+    usecase "Moje wizyty" as UC_PatViewAppointments <<patient>>
+    usecase "Rezerwuj wizytę" as UC_PatBookAppointment <<patient>>
+    usecase "Anuluj wizytę" as UC_PatCancelAppointment <<patient>>
+    usecase "Mój profil" as UC_PatViewProfile <<patient>>
+  }
+
+  package "Cennik" as PKG_Catalog #FFD700 {
+    usecase "Przeglądaj cennik" as UC_ViewCatalog <<common>>
+    usecase "Dodaj usługę" as UC_AddService <<owner>>
+    usecase "Edytuj usługę" as UC_EditService <<owner>>
+  }
+
+  package "Autoryzacja" as PKG_Auth #E8E8E8 {
+    usecase "Zaloguj się" as UC_Login <<common>>
+    usecase "Wyloguj się" as UC_Logout <<common>>
+    usecase "Zmień hasło" as UC_ChangePass <<common>>
+  }
+
+  package "Powiadomienia" as PKG_Notif #E8E8E8 {
+    usecase "Lista powiadomień" as UC_ViewNotif <<common>>
+    usecase "Oznacz przeczytane" as UC_ReadNotif <<common>>
+  }
+
+  PKG_Clinic -[hidden]right-> PKG_Patient
+  PKG_Patient -[hidden]right-> PKG_Appointments
+  PKG_Appointments -[hidden]right-> PKG_Schedule
+  PKG_Schedule -[hidden]right-> PKG_PatPortal
+
+  PKG_Clinic -[hidden]down-> PKG_Catalog
+  PKG_Catalog -[hidden]down-> PKG_Auth
+  PKG_Auth -[hidden]right-> PKG_Notif
+}
+
+' ═══ POŁĄCZENIA ═══
+
+' Owner - tylko ekskluzywne pakiety
+Owner --> PKG_Clinic
+Owner --> PKG_Catalog
+
+' Recepcja - zarządzanie pacjentami i wizytami
+Reception --> PKG_Patient
+Reception --> UC_BookAppointment
+Reception --> UC_EditAppointment
+Reception --> UC_CancelAppointment
+Reception --> UC_ViewSchedule
+
+' Dentysta - grafik, historia i status wizyt
+Dentist --> PKG_Schedule
+Dentist --> UC_PatientHistory
+Dentist --> UC_ViewAppointments
+Dentist --> UC_ChangeStatus
+
+' Asystent - tylko podgląd
+Assistant --> UC_SearchPatient
+Assistant --> UC_ViewSchedule
+Assistant --> UC_ViewAppointments
+
+' Pacjent - portal samoobsługowy
+Patient --> PKG_PatPortal
+
+' ═══ NOTE ═══
+note bottom of PKG_Auth
+  Wszyscy aktorzy mają dostęp do:
+  • Autoryzacja (logowanie, wylogowanie, zmiana hasła)
+  • Powiadomienia (lista, oznacz przeczytane)
+  • Przeglądaj cennik
+  **Owner** ma pełny dostęp do wszystkich modułów systemu
+end note
+
+legend bottom
+  |= Kolor |= Dostęp |
+  | <#FFD700> | Tylko Owner |
+  | <#87CEEB> | Recepcja |
+  | <#98FB98> | Dentysta |
+  | <#DDA0DD> | Asystentka (podgląd) |
+  | <#FFB6C1> | Tylko Pacjent |
+  | <#E8E8E8> | Wszyscy |
+endlegend
+
+@enduml
