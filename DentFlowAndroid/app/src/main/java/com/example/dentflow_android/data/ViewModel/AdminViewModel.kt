@@ -1,8 +1,8 @@
-package com.example.dentflow_android
+package com.example.dentflow_android.data.ViewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.dentflow_android.data.remote.*
+import com.example.dentflow_android.data.remote.ApiService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

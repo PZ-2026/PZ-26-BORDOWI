@@ -1,4 +1,4 @@
-package com.example.dentflow_android
+package com.example.dentflow_android.Screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dentflow_android.data.remote.RegisterRequest
@@ -19,25 +20,24 @@ import com.example.dentflow_android.ui.viewmodels.AuthViewModel
 fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onBackToLogin: () -> Unit,
-    viewModel: AuthViewModel = hiltViewModel() // Wstrzykujemy ViewModel
+    viewModel: AuthViewModel = hiltViewModel()
 ) {
-    // Stan pól formularza
     var firstname by remember { mutableStateOf("") }
     var lastname by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") } // NOWE: Powtórz hasło
 
-    // Obserwujemy stany z ViewModelu
     val isLoading by viewModel.isLoading.collectAsState()
     val serverErrorMessage by viewModel.errorMessage.collectAsState()
 
-    // Stan błędów lokalnej walidacji
     var showError by remember { mutableStateOf(false) }
 
-    // Proste funkcje sprawdzające
+    // Walidacja
     val isEmailValid = email.contains("@") && email.contains(".")
     val isPasswordValid = password.length >= 6
+    val passwordsMatch = password == confirmPassword && password.isNotEmpty() // NOWE: Czy hasła są takie same
     val isPhoneValid = phone.length >= 9
     val areFieldsNotEmpty = firstname.isNotBlank() && lastname.isNotBlank()
 
@@ -49,8 +49,7 @@ fun RegisterScreen(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         cursorColor = MaterialTheme.colorScheme.secondary,
         errorBorderColor = MaterialTheme.colorScheme.error,
-        errorLabelColor = MaterialTheme.colorScheme.error,
-        errorSupportingTextColor = MaterialTheme.colorScheme.error
+        errorLabelColor = MaterialTheme.colorScheme.error
     )
 
     val textFieldTextStyle = TextStyle(color = MaterialTheme.colorScheme.secondary)
@@ -129,19 +128,39 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Hasło
+        // Hasło (Z GWIAZDKAMI)
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; showError = false },
             label = { Text("Hasło") },
             enabled = !isLoading,
             isError = showError && !isPasswordValid,
+            visualTransformation = PasswordVisualTransformation(), // GWIAZDKI
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
         )
 
-        // Wyświetlanie błędu z serwera (np. e-mail zajęty)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Powtórz hasło (NOWE POLE)
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = { confirmPassword = it; showError = false },
+            label = { Text("Powtórz hasło") },
+            enabled = !isLoading,
+            isError = showError && !passwordsMatch,
+            visualTransformation = PasswordVisualTransformation(), // GWIAZDKI
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = textFieldTextStyle,
+            colors = textFieldColors,
+            supportingText = {
+                if (showError && !passwordsMatch && confirmPassword.isNotEmpty()) {
+                    Text("Hasła muszą być identyczne")
+                }
+            }
+        )
+
         if (serverErrorMessage != null) {
             Text(
                 text = serverErrorMessage!!,
@@ -153,17 +172,15 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Przycisk Rejestracji
         Button(
             onClick = {
-                if (areFieldsNotEmpty && isEmailValid && isPasswordValid && isPhoneValid) {
+                if (areFieldsNotEmpty && isEmailValid && isPasswordValid && isPhoneValid && passwordsMatch) {
                     val request = RegisterRequest(
                         firstName = firstname,
                         lastName = lastname,
                         email = email,
                         password = password,
                         phone = phone
-
                     )
                     viewModel.register(request, onRegisterSuccess)
                 } else {

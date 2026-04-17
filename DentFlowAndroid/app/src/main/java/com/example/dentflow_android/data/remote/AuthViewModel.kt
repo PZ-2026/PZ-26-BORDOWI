@@ -1,5 +1,7 @@
 package com.example.dentflow_android.ui.viewmodels
 
+import android.content.SharedPreferences
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dentflow_android.data.remote.*
@@ -11,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val prefs: SharedPreferences // Wstrzykujemy SharedPreferences skonfigurowane w NetworkModule
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
@@ -20,10 +23,6 @@ class AuthViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
-    /**
-     * Zmieniona funkcja login:
-     * - onSuccess przyjmuje teraz tylko Long (tenantId), bo rola nie przychodzi w JSONie.
-     */
     fun login(request: LoginRequest, onSuccess: (Long) -> Unit) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -33,14 +32,23 @@ class AuthViewModel @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
 
-                    // Przekazujemy tylko tenantId, bo pola role nie ma w AuthResponse
+                    // --- KLUCZOWA POPRAWKA: Zapisujemy token do pamięci ---
+                    // Upewnij się, że pole w body nazywa się 'token' lub 'accessToken'
+                    val token = body.token
+
+                    if (!token.isNullOrBlank()) {
+                        prefs.edit().putString("jwt_token", token).apply()
+                        Log.d("AUTH_DEBUG", "Token zapisany pomyślnie w SharedPreferences")
+                    } else {
+                        Log.e("AUTH_DEBUG", "Serwer zwrócił sukces, ale token jest pusty!")
+                    }
+
                     onSuccess(body.tenantId)
                 } else {
-                    // Jeśli serwer zwróci 401 lub 403
                     _errorMessage.value = "Błędny e-mail lub hasło"
+                    Log.e("AUTH_DEBUG", "Błąd logowania: ${response.code()}")
                 }
             } catch (e: Exception) {
-                // Jeśli np. serwer jest wyłączony lub adres IP jest złe
                 _errorMessage.value = "Błąd połączenia z serwerem"
                 e.printStackTrace()
             } finally {
@@ -66,5 +74,11 @@ class AuthViewModel @Inject constructor(
                 _isLoading.value = false
             }
         }
+    }
+
+    // Dodatkowa metoda do wylogowania (czyści token)
+    fun logout() {
+        prefs.edit().remove("jwt_token").apply()
+        Log.d("AUTH_DEBUG", "Token usunięty - wylogowano.")
     }
 }
