@@ -6,16 +6,35 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle // DODANO
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.remote.LoginRequest
+import com.example.dentflow_android.ui.viewmodels.AuthViewModel
 
 @Composable
-fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit) {
+fun LoginScreen(
+    // POPRAWKA: onLoginSuccess przyjmuje teraz Long (tenantId) zamiast String (role)
+    onLoginSuccess: (Long) -> Unit,
+    onRegisterClick: () -> Unit,
+    viewModel: AuthViewModel = hiltViewModel()
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var isError by remember { mutableStateOf(false) }
+
+    val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = MaterialTheme.colorScheme.primary,
+        unfocusedTextColor = MaterialTheme.colorScheme.primary,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.primary,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        cursorColor = MaterialTheme.colorScheme.primary
+    )
 
     Column(
         modifier = Modifier
@@ -24,6 +43,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(40.dp))
+
         Text(
             text = "DentFlow",
             style = MaterialTheme.typography.displayMedium,
@@ -43,61 +63,34 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit) {
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
-            // 1. Pole Email z niestandardowymi kolorami
             OutlinedTextField(
                 value = email,
-                onValueChange = {
-                    email = it
-                    isError = false
-                },
+                onValueChange = { email = it },
                 label = { Text("Email") },
-                isError = isError,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                // USTAWIANIE KOLORU WPISYWANEGO TEKSTU
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.secondary),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedTextColor = MaterialTheme.colorScheme.secondary,
-                    focusedLabelColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.secondary
-                )
+                enabled = !isLoading,
+                colors = textFieldColors,
+                textStyle = TextStyle(color = MaterialTheme.colorScheme.primary)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Pole Hasło z niestandardowymi kolorami
             OutlinedTextField(
                 value = password,
-                onValueChange = {
-                    password = it
-                    isError = false
-                },
+                onValueChange = { password = it },
                 label = { Text("Hasło") },
                 visualTransformation = PasswordVisualTransformation(),
-                isError = isError,
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                // USTAWIANIE KOLORU WPISYWANEGO TEKSTU
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.secondary),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedTextColor = MaterialTheme.colorScheme.secondary,
-                    focusedLabelColor = MaterialTheme.colorScheme.secondary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    cursorColor = MaterialTheme.colorScheme.secondary
-                )
+                enabled = !isLoading,
+                colors = textFieldColors,
+                textStyle = TextStyle(color = MaterialTheme.colorScheme.primary)
             )
 
-            if (isError) {
+            if (errorMessage != null) {
                 Text(
-                    text = "Błędne dane logowania",
+                    text = errorMessage!!,
                     color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp).align(Alignment.Start)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
@@ -105,42 +98,46 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, onRegisterClick: () -> Unit) {
 
             Button(
                 onClick = {
-                    if (email == "admin" && password == "admin") {
-                        onLoginSuccess("OWNER")
-                    } else if (email == "pacjent" && password == "123") {
-                        onLoginSuccess("PATIENT")
-                    } else {
-                        isError = true
+                    // POPRAWKA: Dopasowanie do nowej sygnatury login(request, onSuccess)
+                    viewModel.login(LoginRequest(email, password)) { tenantId ->
+                        onLoginSuccess(tenantId)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
+                enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.primary
                 )
             ) {
-                Text(
-                    text = "Zaloguj się",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                TextButton(onClick = { onRegisterClick() }) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
                     Text(
-                        text = "Nie masz konta? Zarejestruj się!",
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Bold
+                        text = "Zaloguj się",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
+            }
+
+            TextButton(
+                onClick = onRegisterClick,
+                enabled = !isLoading,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text(
+                    text = "Nie masz konta? Zarejestruj się!",
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

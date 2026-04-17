@@ -16,21 +16,78 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.remote.StaffMemberResponse
+//import com.example.dentflow_android.ui.viewmodels.StaffViewModel
 
-data class StaffMember(
-    val id: Int,
-    val name: String,
-    val role: String,
-    val email: String,
-    val color: Color
-)
+@Composable
+fun AddStaffDialog(onDismiss: () -> Unit, onConfirm: (StaffMemberResponse) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var role by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var showErrors by remember { mutableStateOf(false) }
 
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nowe Konto Pracownika") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Upewnij się, że masz funkcję BusinessInputField lub użyj OutlinedTextField
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Imię i Nazwisko") },
+                    isError = showErrors && name.isBlank()
+                )
+                OutlinedTextField(
+                    value = role,
+                    onValueChange = { role = it },
+                    label = { Text("Rola (np. Lekarz)") },
+                    isError = showErrors && role.isBlank()
+                )
+                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("E-mail (Login)") },
+                    isError = showErrors && !email.contains("@")
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Hasło tymczasowe") },
+                    isError = showErrors && password.length < 6
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (name.isNotBlank() && email.contains("@") && password.length >= 6) {
+                    // Tworzymy tymczasowy obiekt odpowiedzi (na potrzeby UI)
+                    onConfirm(StaffMemberResponse(0L, 1L, 0L, name, role))
+                } else { showErrors = true }
+            }) { Text("DODAJ I REJESTRUJ") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ANULUJ") }
+        }
+    )
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StaffManagementScreen(onBackClick: () -> Unit) {
+fun StaffManagementScreen(
+    onBackClick: () -> Unit,
+    viewModel: StaffViewModel = hiltViewModel() // Podpinamy mózg operacji
+) {
     var showDialog by remember { mutableStateOf(false) }
-    val staffList = remember { mutableStateListOf<StaffMember>() }
+    // Obserwujemy prawdziwe dane z bazy
+    val staffList by viewModel.staffMembers.collectAsState()
+
+    // Ładujemy dane przy starcie (tenantId na sztywno 1L)
+    LaunchedEffect(Unit) {
+        viewModel.loadStaff(1L)
+    }
 
     Scaffold(
         topBar = {
@@ -51,7 +108,9 @@ fun StaffManagementScreen(onBackClick: () -> Unit) {
         if (showDialog) {
             AddStaffDialog(
                 onDismiss = { showDialog = false },
-                onConfirm = { staffList.add(it); showDialog = false }
+                onConfirm = { /* Tutaj w przyszłości dodasz wywołanie viewModel.addStaff(it) */
+                    showDialog = false
+                }
             )
         }
 
@@ -67,13 +126,17 @@ fun StaffManagementScreen(onBackClick: () -> Unit) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(45.dp).clip(CircleShape).background(member.color.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-                            Text(member.name.take(1), color = member.color, fontWeight = FontWeight.Bold)
+                        // Kółko z inicjałem (używamy displayName z bazy)
+                        Box(
+                            modifier = Modifier.size(45.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(member.displayName.take(1), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(member.name, fontWeight = FontWeight.Bold)
-                            Text(member.role, style = MaterialTheme.typography.bodySmall)
+                            Text(member.displayName, fontWeight = FontWeight.Bold)
+                            Text(member.profession, style = MaterialTheme.typography.bodySmall)
                         }
                         IconButton(onClick = { /* Tu wejdziemy w grafik */ }) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -83,35 +146,4 @@ fun StaffManagementScreen(onBackClick: () -> Unit) {
             }
         }
     }
-}
-
-@Composable
-fun AddStaffDialog(onDismiss: () -> Unit, onConfirm: (StaffMember) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var role by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var showErrors by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nowe Konto Pracownika") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BusinessInputField(value = name, onValueChange = { name = it }, label = "Imię i Nazwisko", icon = Icons.Default.Person, isError = showErrors && name.isBlank())
-                BusinessInputField(value = role, onValueChange = { role = it }, label = "Rola (np. Lekarz)", icon = Icons.Default.Work, isError = showErrors && role.isBlank())
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                BusinessInputField(value = email, onValueChange = { email = it }, label = "E-mail (Login)", icon = Icons.Default.Email, isError = showErrors && !email.contains("@"))
-                BusinessInputField(value = password, onValueChange = { password = it }, label = "Hasło tymczasowe", icon = Icons.Default.Lock, isError = showErrors && password.length < 6)
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                if (name.isNotBlank() && email.contains("@") && password.length >= 6) {
-                    onConfirm(StaffMember((0..100).random(), name, role, email, Color(0xFF4DB6AC)))
-                } else { showErrors = true }
-            }) { Text("DODAJ I REJESTRUJ", color = Color.White) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("ANULUJ", color = Color.White) } }
-    )
 }

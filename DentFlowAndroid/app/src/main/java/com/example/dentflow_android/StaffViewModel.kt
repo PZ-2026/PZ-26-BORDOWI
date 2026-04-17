@@ -1,30 +1,32 @@
 package com.example.dentflow_android
 
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.dentflow_android.data.remote.ApiService
+import com.example.dentflow_android.data.remote.StaffMemberResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class MainViewModel @Inject constructor(
+class StaffViewModel @Inject constructor(
     private val apiService: ApiService
 ) : ViewModel() {
 
-    fun fetchData(tenantId: Long) {
+    private val _staffMembers = MutableStateFlow<List<StaffMemberResponse>>(emptyList())
+    val staffMembers: StateFlow<List<StaffMemberResponse>> = _staffMembers
+
+    fun loadStaff(tenantId: Long) {
         viewModelScope.launch {
             try {
                 val response = apiService.getStaff(tenantId)
-
                 if (response.isSuccessful) {
-                    val staffMembers = response.body()
-                    println("Pobrano personel: ${staffMembers?.size ?: 0}")
-                } else {
-                    println("Błąd serwera: ${response.code()}")
+                    _staffMembers.value = response.body() ?: emptyList()
                 }
             } catch (e: Exception) {
-                // To wyłapie błędy sieciowe (np. wyłączony Docker)
                 e.printStackTrace()
             }
         }

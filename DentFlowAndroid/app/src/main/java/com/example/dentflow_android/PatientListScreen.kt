@@ -8,25 +8,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.remote.PatientResponse
+// Jeśli masz ViewModel w innym pakiecie, odkomentuj i popraw:
+// import com.example.dentflow_android.ui.viewmodels.PatientViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatientListScreen(onBackClick: () -> Unit) {
-    // Przykładowa lista danych
-    val patients = listOf(
-        "Anna Nowak",
-        "Jan Kowalski",
-        "Marta Wiśniewska",
-        "Piotr Zieliński",
-        "Katarzyna Woźniak",
-        "Tomasz Mazur",
-        "Aleksandra Król"
-    )
+fun PatientListScreen(
+    onBackClick: () -> Unit,
+    viewModel: PatientViewModel = hiltViewModel()
+) {
+    val patients by viewModel.patients.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState() // Obserwujemy stan ładowania
+
+    LaunchedEffect(Unit) {
+        viewModel.loadPatients(1L)
+    }
 
     Scaffold(
         topBar = {
@@ -41,70 +44,77 @@ fun PatientListScreen(onBackClick: () -> Unit) {
                     IconButton(onClick = { /* Szukaj */ }) {
                         Icon(Icons.Default.Search, contentDescription = null)
                     }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { /* Tu będzie otwieranie dialogu dodawania */ }) {
+                Icon(Icons.Default.Add, contentDescription = "Dodaj pacjenta")
+            }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(patients) { patient ->
-                PatientItem(patientName = patient)
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (isLoading) {
+                // Pokazuj kręciołek TYLKO gdy trwa ładowanie
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (patients.isEmpty()) {
+                // Pokazuj komunikat, gdy ładowanie się skończyło i lista jest pusta
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.PersonOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Brak pacjentów w bazie",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            } else {
+                // Wyświetl listę, gdy są dane
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(patients) { patient ->
+                        PatientItem(patient = patient)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun PatientItem(patientName: String) {
+fun PatientItem(patient: PatientResponse) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* Tutaj otworzymy szczegóły pacjenta */ },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+            .clickable { /* Szczegóły */ },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(40.dp)
-            )
+            Icon(Icons.Default.AccountCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
             Spacer(modifier = Modifier.width(16.dp))
             Column {
-                Text(
-                    text = patientName,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    text = "Ostatnia wizyta: 12.10.2023",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = "${patient.firstName} ${patient.lastName}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                Text(text = "Email: ${patient.email ?: "Brak danych"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(modifier = Modifier.weight(1f))
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline
-            )
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
         }
     }
 }

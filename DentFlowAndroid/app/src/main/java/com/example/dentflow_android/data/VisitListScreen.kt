@@ -13,27 +13,63 @@ import com.example.dentflow_android.data.VisitViewModel
 
 @Composable
 fun VisitListScreen(viewModel: VisitViewModel, modifier: Modifier = Modifier) {
+    // Teraz "visits" to lista obiektów VisitWithPatient
     val visits by viewModel.visits.collectAsState()
 
     Scaffold(
-        topBar = { Text("DentFlow - Lista Wizyt", modifier = Modifier.padding(16.dp)) }
+        topBar = {
+            Surface(shadowElevation = 3.dp) {
+                Text(
+                    text = "DentFlow - Lista Wizyt",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.fillMaxWidth().padding(16.dp)
+                )
+            }
+        }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding)) {
-            items(visits) { visit ->
-                VisitItem(visit)
+            items(visits) { item ->
+                // Przekazujemy cały obiekt "item", który ma w sobie wizytę i pacjenta
+                VisitItem(item)
             }
         }
     }
 }
 
 @Composable
-fun VisitItem(visit: Visit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+fun VisitItem(item: VisitWithPatient) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = visit.patientName, style = MaterialTheme.typography.titleLarge)
-            Text(text = "Lekarz: ${visit.doctorName}")
-            Text(text = "Usługa: ${visit.serviceName}")
-            Text(text = "Status: ${visit.status}")
+            // Sprawdzamy, czy udało się pobrać dane pacjenta
+            val patientName = if (item.patient != null) {
+                "${item.patient.firstName} ${item.patient.lastName}"
+            } else {
+                "Ładowanie danych pacjenta..."
+            }
+
+            Text(
+                text = patientName,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(text = "Data: ${item.visit.visitDate}")
+            Text(text = "Opis: ${item.visit.description}")
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Wyświetlamy status w ładniejszy sposób
+            SuggestionChip(
+                onClick = { /* opcjonalnie akcja */ },
+                label = { Text(item.visit.status) }
+            )
         }
     }
 }

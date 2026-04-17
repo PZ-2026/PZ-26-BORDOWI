@@ -11,9 +11,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.remote.RegisterRequest
+import com.example.dentflow_android.ui.viewmodels.AuthViewModel
 
 @Composable
-fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
+fun RegisterScreen(
+    onRegisterSuccess: () -> Unit,
+    onBackToLogin: () -> Unit,
+    viewModel: AuthViewModel = hiltViewModel() // Wstrzykujemy ViewModel
+) {
     // Stan pól formularza
     var firstname by remember { mutableStateOf("") }
     var lastname by remember { mutableStateOf("") }
@@ -21,7 +28,11 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
-    // Stan błędów walidacji
+    // Obserwujemy stany z ViewModelu
+    val isLoading by viewModel.isLoading.collectAsState()
+    val serverErrorMessage by viewModel.errorMessage.collectAsState()
+
+    // Stan błędów lokalnej walidacji
     var showError by remember { mutableStateOf(false) }
 
     // Proste funkcje sprawdzające
@@ -37,7 +48,6 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
         unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         cursorColor = MaterialTheme.colorScheme.secondary,
-        // Dodajemy kolory dla błędów
         errorBorderColor = MaterialTheme.colorScheme.error,
         errorLabelColor = MaterialTheme.colorScheme.error,
         errorSupportingTextColor = MaterialTheme.colorScheme.error
@@ -68,8 +78,8 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             value = firstname,
             onValueChange = { firstname = it; showError = false },
             label = { Text("Imię") },
+            enabled = !isLoading,
             isError = showError && firstname.isBlank(),
-            supportingText = { if (showError && firstname.isBlank()) Text("Imię jest wymagane") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
@@ -82,8 +92,8 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             value = lastname,
             onValueChange = { lastname = it; showError = false },
             label = { Text("Nazwisko") },
+            enabled = !isLoading,
             isError = showError && lastname.isBlank(),
-            supportingText = { if (showError && lastname.isBlank()) Text("Nazwisko jest wymagane") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
@@ -96,8 +106,8 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             value = phone,
             onValueChange = { phone = it; showError = false },
             label = { Text("Numer telefonu") },
+            enabled = !isLoading,
             isError = showError && !isPhoneValid,
-            supportingText = { if (showError && !isPhoneValid) Text("Min. 9 cyfr") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
@@ -110,8 +120,8 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             value = email,
             onValueChange = { email = it; showError = false },
             label = { Text("E-mail") },
+            enabled = !isLoading,
             isError = showError && !isEmailValid,
-            supportingText = { if (showError && !isEmailValid) Text("Niepoprawny format e-mail") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
@@ -124,12 +134,22 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             value = password,
             onValueChange = { password = it; showError = false },
             label = { Text("Hasło") },
+            enabled = !isLoading,
             isError = showError && !isPasswordValid,
-            supportingText = { if (showError && !isPasswordValid) Text("Hasło musi mieć min. 6 znaków") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = textFieldTextStyle,
             colors = textFieldColors
         )
+
+        // Wyświetlanie błędu z serwera (np. e-mail zajęty)
+        if (serverErrorMessage != null) {
+            Text(
+                text = serverErrorMessage!!,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
@@ -137,18 +157,31 @@ fun RegisterScreen(onRegisterSuccess: () -> Unit, onBackToLogin: () -> Unit) {
         Button(
             onClick = {
                 if (areFieldsNotEmpty && isEmailValid && isPasswordValid && isPhoneValid) {
-                    onRegisterSuccess()
+                    val request = RegisterRequest(
+                        firstName = firstname,
+                        lastName = lastname,
+                        email = email,
+                        password = password,
+                        phone = phone
+
+                    )
+                    viewModel.register(request, onRegisterSuccess)
                 } else {
-                    showError = true // Pokazuje błędy we wszystkich polach
+                    showError = true
                 }
             },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth().height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
-            Text("ZAREJESTRUJ SIĘ", color = Color.White, fontWeight = FontWeight.Bold)
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                Text("ZAREJESTRUJ SIĘ", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
 
-        TextButton(onClick = { onBackToLogin() }) {
+        TextButton(onClick = { onBackToLogin() }, enabled = !isLoading) {
             Text(
                 text = "Masz już konto? Zaloguj się",
                 color = MaterialTheme.colorScheme.secondary,
