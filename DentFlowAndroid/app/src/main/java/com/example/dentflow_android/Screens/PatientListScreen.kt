@@ -29,7 +29,6 @@ fun PatientListScreen(
     var showDialog by remember { mutableStateOf(false) }
     var selectedPatient by remember { mutableStateOf<PatientResponse?>(null) }
 
-    // Odświeżanie listy przy każdym wejściu
     LaunchedEffect(Unit) {
         viewModel.loadPatients(1L)
     }

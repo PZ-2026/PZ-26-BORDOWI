@@ -29,7 +29,6 @@ interface ApiService {
         @Query("search") search: String? = null
     ): Response<List<PatientResponse>>
 
-    // DODANO: Pobieranie pojedynczego pacjenta (naprawia błąd Unresolved reference)
     @GET("tenants/{tenantId}/patients/{patientId}")
     suspend fun getPatientById(
         @Path("tenantId") tenantId: Long,

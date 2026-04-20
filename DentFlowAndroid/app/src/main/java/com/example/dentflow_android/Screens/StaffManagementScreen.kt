@@ -34,7 +34,6 @@ fun AddStaffDialog(onDismiss: () -> Unit, onConfirm: (StaffMemberResponse) -> Un
         title = { Text("Nowe Konto Pracownika") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Upewnij się, że masz funkcję BusinessInputField lub użyj OutlinedTextField
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -79,13 +78,11 @@ fun AddStaffDialog(onDismiss: () -> Unit, onConfirm: (StaffMemberResponse) -> Un
 @Composable
 fun StaffManagementScreen(
     onBackClick: () -> Unit,
-    viewModel: StaffViewModel = hiltViewModel() // Podpinamy mózg operacji
+    viewModel: StaffViewModel = hiltViewModel()
 ) {
     var showDialog by remember { mutableStateOf(false) }
-    // Obserwujemy prawdziwe dane z bazy
     val staffList by viewModel.staffMembers.collectAsState()
 
-    // Ładujemy dane przy starcie (tenantId na sztywno 1L)
     LaunchedEffect(Unit) {
         viewModel.loadStaff(1L)
     }
@@ -127,7 +124,6 @@ fun StaffManagementScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // Kółko z inicjałem (używamy displayName z bazy)
                         Box(
                             modifier = Modifier.size(45.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center

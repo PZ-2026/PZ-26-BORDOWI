@@ -14,7 +14,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authService: AuthService,
-    private val prefs: SharedPreferences // Wstrzykujemy SharedPreferences skonfigurowane w NetworkModule
+    private val prefs: SharedPreferences
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
@@ -32,8 +32,6 @@ class AuthViewModel @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
 
-                    // --- KLUCZOWA POPRAWKA: Zapisujemy token do pamięci ---
-                    // Upewnij się, że pole w body nazywa się 'token' lub 'accessToken'
                     val token = body.token
 
                     if (!token.isNullOrBlank()) {
@@ -76,7 +74,6 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    // Dodatkowa metoda do wylogowania (czyści token)
     fun logout() {
         prefs.edit().remove("jwt_token").apply()
         Log.d("AUTH_DEBUG", "Token usunięty - wylogowano.")

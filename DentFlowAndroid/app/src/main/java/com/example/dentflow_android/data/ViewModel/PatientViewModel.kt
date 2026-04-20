@@ -25,10 +25,8 @@ class PatientViewModel @Inject constructor(
 
     private val TAG = "PATIENT_VM_DEBUG"
 
-    // Stała dla tenantId - docelowo powinna pochodzić z sesji użytkownika
     private val currentTenantId = 1L
 
-    // 1. POBIERANIE PACJENTÓW
     fun fetchPatients(tenantId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -38,7 +36,6 @@ class PatientViewModel @Inject constructor(
                     val list = response.body() ?: emptyList()
                     _patients.value = list
 
-                    // Logowanie, aby sprawdzić czy telefon przychodzi z bazy
                     list.forEach {
                         Log.d(TAG, "Pacjent: ${it.firstName}, Telefon: ${it.phone}")
                     }
@@ -53,17 +50,15 @@ class PatientViewModel @Inject constructor(
         }
     }
 
-    // Alias dla kompatybilności wstecznej
     fun loadPatients(tenantId: Long) = fetchPatients(tenantId)
 
-    // 2. DODAWANIE PACJENTA
     fun addPatient(firstName: String, lastName: String, email: String, phone: String) {
         viewModelScope.launch {
             try {
                 val request = CreatePatientRequest(
                     firstName = firstName,
                     lastName = lastName,
-                    phone = phone, // Kluczowe pole
+                    phone = phone,
                     email = email,
                     notes = ""
                 )
@@ -79,14 +74,13 @@ class PatientViewModel @Inject constructor(
         }
     }
 
-    // 3. EDYCJA PACJENTA
     fun updatePatient(id: Long, firstName: String, lastName: String, email: String, phone: String) {
         viewModelScope.launch {
             try {
                 val request = CreatePatientRequest(
                     firstName = firstName,
                     lastName = lastName,
-                    phone = phone, // Przesyłamy edytowany telefon
+                    phone = phone,
                     email = email,
                     notes = ""
                 )
@@ -101,8 +95,7 @@ class PatientViewModel @Inject constructor(
             }
         }
     }
-
-    // 4. USUWANIE PACJENTA
+    
     fun deletePatient(id: Long) {
         viewModelScope.launch {
             try {

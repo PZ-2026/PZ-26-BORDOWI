@@ -66,7 +66,6 @@ fun VisitItem(item: VisitWithPatient) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // NAPRAWIONO: Zmiana z visitDate na startTime
             Text(text = "Termin: ${item.visit.startTime}")
 
             item.visit.description?.let {

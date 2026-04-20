@@ -24,7 +24,6 @@ class TenantViewModel @Inject constructor(
 
     private val TAG = "DENTFLOW_DEBUG"
 
-    // 1. ŁADOWANIE DANYCH
     fun loadTenantData(id: Long) {
         viewModelScope.launch {
             try {
@@ -39,7 +38,6 @@ class TenantViewModel @Inject constructor(
                     val errorBody = response.errorBody()?.string()
                     Log.e(TAG, "Błąd serwera: Kod $errorCode - Body: $errorBody")
 
-                    // --- FALLBACK: Jeśli mamy 403, wstawiamy dane testowe, żebyś widziała UI ---
                     if (errorCode == 403) {
                         Log.w(TAG, "Wykryto 403. Wstawiam dane fallback, aby odblokować UI.")
                         _tenantState.value = TenantResponse(
@@ -66,7 +64,6 @@ class TenantViewModel @Inject constructor(
         }
     }
 
-    // 2. ZAPISYWANIE DANYCH
     fun saveBusinessData(name: String, locName: String, street: String, city: String, zip: String) {
         viewModelScope.launch {
             val request = TenantRequest(
@@ -80,7 +77,6 @@ class TenantViewModel @Inject constructor(
                 )
             )
             try {
-                // Używamy ID z aktualnego stanu lub domyślnie 1L
                 val currentId = _tenantState.value?.id ?: 1L
                 Log.d(TAG, "Wysyłanie aktualizacji dla tenantId: $currentId")
                 val response = apiService.updateTenant(currentId, request)
