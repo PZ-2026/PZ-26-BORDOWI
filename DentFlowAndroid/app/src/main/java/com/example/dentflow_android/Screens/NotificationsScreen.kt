@@ -134,7 +134,6 @@ fun NotificationCard(notification: NotificationItem) {
                         else
                             MaterialTheme.colorScheme.secondary
                     )
-                    // Niebieska kropka zostaje, bo dobrze pasuje
                     if (!notification.isRead) {
                         Box(
                             modifier = Modifier

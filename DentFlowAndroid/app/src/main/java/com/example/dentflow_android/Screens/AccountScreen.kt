@@ -29,10 +29,17 @@ import com.example.dentflow_android.data.ViewModel.TenantViewModel
 
 @Composable
 fun AccountScreen(
+<<<<<<< HEAD
     tenantViewModel: TenantViewModel = hiltViewModel(), // Podpięcie danych firmy
     onSettingsClick: () -> Unit,
     onLogoutClick: () -> Unit,
     onEditBusinessClick: () -> Unit // Dodano nawigację do edycji firmy
+=======
+    tenantViewModel: TenantViewModel = hiltViewModel(),
+    onSettingsClick: () -> Unit,
+    onLogoutClick: () -> Unit,
+    onEditBusinessClick: () -> Unit
+>>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
 ) {
     val scrollState = rememberScrollState()
 
@@ -43,7 +50,10 @@ fun AccountScreen(
 
     val tenantData by tenantViewModel.tenantState
 
+<<<<<<< HEAD
     // Ustalanie czy użytkownik jest ownerem (na razie statycznie, docelowo z UserViewModel)
+=======
+>>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
     val isOwner = true
 
     // --- LOGIKA WYBORU ZDJĘĆ ---
@@ -116,8 +126,11 @@ fun AccountScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+<<<<<<< HEAD
         // DANE UŻYTKOWNIKA (Docelowo z bazy)
         Text(text = "ad@gmail.com", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+=======
+>>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
         Text(text = if (isOwner) "Właściciel Kliniki" else "Pracownik", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
 
         Spacer(modifier = Modifier.height(32.dp))

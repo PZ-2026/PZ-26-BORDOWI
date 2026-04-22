@@ -23,13 +23,11 @@ class AdminViewModel @Inject constructor(
     fun loadStats(tenantId: Long) {
         viewModelScope.launch {
             try {
-                // Pobieramy wizyty, żeby policzyć ile ich jest dzisiaj
                 val visitsRes = apiService.getVisits(tenantId)
                 if (visitsRes.isSuccessful) {
                     _visitCount.value = (visitsRes.body()?.size ?: 0).toString()
                 }
 
-                // Pobieramy pacjentów, żeby wiedzieć ilu ich mamy w bazie
                 val patientsRes = apiService.getPatients(tenantId)
                 if (patientsRes.isSuccessful) {
                     _patientCount.value = (patientsRes.body()?.size ?: 0).toString()

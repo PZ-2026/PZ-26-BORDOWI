@@ -24,7 +24,6 @@ class MainViewModel @Inject constructor(
                     println("Błąd serwera: ${response.code()}")
                 }
             } catch (e: Exception) {
-                // To wyłapie błędy sieciowe (np. wyłączony Docker)
                 e.printStackTrace()
             }
         }
