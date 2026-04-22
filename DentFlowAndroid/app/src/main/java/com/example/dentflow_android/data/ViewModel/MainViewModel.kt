@@ -1,4 +1,4 @@
-package com.example.dentflow_android
+package com.example.dentflow_android.data.ViewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

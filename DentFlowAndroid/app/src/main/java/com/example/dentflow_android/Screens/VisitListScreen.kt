@@ -1,4 +1,4 @@
-package com.example.dentflow_android.data
+package com.example.dentflow_android.Screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,13 +7,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.dentflow_android.data.VisitViewModel
+import com.example.dentflow_android.data.ViewModel.VisitViewModel
+import com.example.dentflow_android.data.ViewModel.VisitWithPatient
+import com.example.dentflow_android.data.ViewModel.*
 
 @Composable
 fun VisitListScreen(viewModel: VisitViewModel, modifier: Modifier = Modifier) {
-    // Teraz "visits" to lista obiektów VisitWithPatient
     val visits by viewModel.visits.collectAsState()
 
     Scaffold(
@@ -27,10 +29,15 @@ fun VisitListScreen(viewModel: VisitViewModel, modifier: Modifier = Modifier) {
             }
         }
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding)) {
-            items(visits) { item ->
-                // Przekazujemy cały obiekt "item", który ma w sobie wizytę i pacjenta
-                VisitItem(item)
+        if (visits.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text("Brak zaplanowanych wizyt")
+            }
+        } else {
+            LazyColumn(modifier = Modifier.padding(padding)) {
+                items(visits) { item ->
+                    VisitItem(item)
+                }
             }
         }
     }
@@ -45,11 +52,10 @@ fun VisitItem(item: VisitWithPatient) {
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Sprawdzamy, czy udało się pobrać dane pacjenta
             val patientName = if (item.patient != null) {
                 "${item.patient.firstName} ${item.patient.lastName}"
             } else {
-                "Ładowanie danych pacjenta..."
+                "Pacjent nieznany (ID: ${item.visit.patientId})"
             }
 
             Text(
@@ -60,15 +66,22 @@ fun VisitItem(item: VisitWithPatient) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text(text = "Data: ${item.visit.visitDate}")
-            Text(text = "Opis: ${item.visit.description}")
+            // NAPRAWIONO: Zmiana z visitDate na startTime
+            Text(text = "Termin: ${item.visit.startTime}")
+
+            item.visit.description?.let {
+                Text(text = "Opis: $it")
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Wyświetlamy status w ładniejszy sposób
             SuggestionChip(
-                onClick = { /* opcjonalnie akcja */ },
-                label = { Text(item.visit.status) }
+                onClick = { },
+                label = { Text(item.visit.status) },
+                colors = SuggestionChipDefaults.suggestionChipColors(
+                    labelColor = if (item.visit.status == "COMPLETED")
+                        MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                )
             )
         }
     }

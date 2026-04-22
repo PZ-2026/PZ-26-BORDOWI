@@ -1,12 +1,10 @@
-package com.example.dentflow_android
+package com.example.dentflow_android.Screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -16,7 +14,6 @@ import com.example.dentflow_android.ui.viewmodels.AuthViewModel
 
 @Composable
 fun LoginScreen(
-    // POPRAWKA: onLoginSuccess przyjmuje teraz Long (tenantId) zamiast String (role)
     onLoginSuccess: (Long) -> Unit,
     onRegisterClick: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
@@ -27,11 +24,12 @@ fun LoginScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
+    // Wspólna konfiguracja kolorów dla pól tekstowych
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = MaterialTheme.colorScheme.primary,
-        unfocusedTextColor = MaterialTheme.colorScheme.primary,
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
         focusedLabelColor = MaterialTheme.colorScheme.primary,
-        unfocusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.outline,
         focusedBorderColor = MaterialTheme.colorScheme.primary,
         cursorColor = MaterialTheme.colorScheme.primary
     )
@@ -44,6 +42,7 @@ fun LoginScreen(
     ) {
         Spacer(modifier = Modifier.height(40.dp))
 
+        // --- LOGO / NAZWA ---
         Text(
             text = "DentFlow",
             style = MaterialTheme.typography.displayMedium,
@@ -63,6 +62,7 @@ fun LoginScreen(
                 modifier = Modifier.padding(bottom = 24.dp)
             )
 
+            // --- POLE EMAIL ---
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -70,11 +70,12 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 colors = textFieldColors,
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.primary)
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // --- POLE HASŁO ---
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
@@ -83,22 +84,24 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 colors = textFieldColors,
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.primary)
+                singleLine = true
             )
 
+            // Wyświetlanie błędu z ViewModelu
             if (errorMessage != null) {
                 Text(
                     text = errorMessage!!,
                     color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // --- PRZYCISK LOGOWANIA ---
             Button(
                 onClick = {
-                    // POPRAWKA: Dopasowanie do nowej sygnatury login(request, onSuccess)
                     viewModel.login(LoginRequest(email, password)) { tenantId ->
                         onLoginSuccess(tenantId)
                     }
@@ -107,27 +110,24 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(56.dp),
                 enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+                shape = MaterialTheme.shapes.medium
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp),
                         strokeWidth = 2.dp
                     )
                 } else {
                     Text(
                         text = "Zaloguj się",
-                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
             }
 
+            // --- PRZEJŚCIE DO REJESTRACJI ---
             TextButton(
                 onClick = onRegisterClick,
                 enabled = !isLoading,
@@ -136,7 +136,7 @@ fun LoginScreen(
                 Text(
                     text = "Nie masz konta? Zarejestruj się!",
                     color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }

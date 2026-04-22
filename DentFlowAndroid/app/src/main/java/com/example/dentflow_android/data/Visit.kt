@@ -8,3 +8,4 @@ data class Visit(
     val date: String,        // np. "2026-03-20 10:30"
     val status: String       // DONE, CONFIRMED, NO_SHOW [cite: 134]
 )
+

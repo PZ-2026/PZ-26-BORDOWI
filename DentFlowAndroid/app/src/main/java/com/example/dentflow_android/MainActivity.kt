@@ -20,7 +20,17 @@ import androidx.navigation.compose.rememberNavController
 import com.example.dentflow_android.ui.theme.DentFlowAndroidTheme
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.dentflow_android.data.VisitListScreen
+import com.example.dentflow_android.Screens.AccountScreen
+import com.example.dentflow_android.Screens.AdminPanelScreen
+import com.example.dentflow_android.Screens.BusinessScreen
+import com.example.dentflow_android.Screens.HomeScreen
+import com.example.dentflow_android.Screens.LoginScreen
+import com.example.dentflow_android.Screens.NotificationsScreen
+import com.example.dentflow_android.Screens.PatientListScreen
+import com.example.dentflow_android.Screens.RegisterScreen
+import com.example.dentflow_android.Screens.SettingsScreen
+import com.example.dentflow_android.Screens.StaffManagementScreen
+import com.example.dentflow_android.Screens.VisitListScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -37,8 +47,6 @@ class MainActivity : ComponentActivity() {
                 NavHost(navController = navController, startDestination = "login") {
                     composable("login") {
                         LoginScreen(
-                            // POPRAWKA: onLoginSuccess przyjmuje teraz tylko tenantId (lub nic),
-                            // bo role nie jest już zwracane przez nasz AuthViewModel
                             onLoginSuccess = { tenantId ->
                                 navController.navigate("main_dashboard") {
                                     popUpTo("login") { inclusive = true }
@@ -108,6 +116,7 @@ fun MainDashboard(
                         selected = selectedItem == index,
                         onClick = {
                             selectedItem = index
+                            // Resetuj widok ustawień przy zmianie zakładki
                             if (index != 5) isShowingSettings = false
                         }
                     )
@@ -127,13 +136,18 @@ fun MainDashboard(
                 4 -> NotificationsScreen()
                 5 -> {
                     if (!isShowingSettings) {
+                        // --- POPRAWIONE WYWOŁANIE AccountScreen ---
                         AccountScreen(
-                            isOwner = true,
                             onSettingsClick = { isShowingSettings = true },
                             onLogoutClick = {
+                                // Akcja wylogowania: powrót do ekranu logowania
                                 navController.navigate("login") {
                                     popUpTo("main_dashboard") { inclusive = true }
                                 }
+                            },
+                            onEditBusinessClick = {
+                                // Przekierowanie do zakładki "Firma" (index 1)
+                                selectedItem = 1
                             }
                         )
                     } else {
