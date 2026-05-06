@@ -22,47 +22,54 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dentflow_android.data.ViewModel.PatientViewModel
+import com.example.dentflow_android.data.ViewModel.ScheduleViewModel
 import com.example.dentflow_android.data.ViewModel.TenantViewModel
 import com.example.dentflow_android.data.remote.LocationResponse
 
 @Composable
 fun BusinessScreen(
     tenantViewModel: TenantViewModel = hiltViewModel(),
-    patientViewModel: PatientViewModel = hiltViewModel()
+    patientViewModel: PatientViewModel = hiltViewModel(),
+    scheduleViewModel: ScheduleViewModel = hiltViewModel()
 ) {
     var showStaffManagement by remember { mutableStateOf(false) }
     var showPatientScreen by remember { mutableStateOf(false) }
+    var showScheduleScreen by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
 
-    // --- WCZYTYWANIE DANYCH ---
+    // --- WCZYTYWANIE DANYCH (Szeroki zakres dla wizyt) ---
     LaunchedEffect(Unit) {
         tenantViewModel.loadTenantData(1L)
         patientViewModel.loadPatients(1L)
+        // Ładujemy dane z szerokim zakresem, aby złapać wizyty z przeszłości
+        scheduleViewModel.loadSchedule(tenantId = 1L, userId = 11L, role = "OWNER")
     }
 
     val tenantData by tenantViewModel.tenantState
     val patients by patientViewModel.patients.collectAsState()
-
-    // --- LOGIKA WYŚWIETLANIA (Z OBSŁUGĄ BŁĘDU 403) ---
-    val displayTenantName = when {
-        tenantData == null -> "Brak dostępu lub ładowanie..."
-        tenantData?.name == "string" -> "Klinika do konfiguracji"
-        else -> tenantData?.name ?: "Moja Klinika"
-    }
+    val slots by scheduleViewModel.slots.collectAsState()
 
     val location = tenantData?.locations?.firstOrNull()
-    val displayLocationName = when {
-        tenantData == null -> "Zaloguj się ponownie (Błąd 403)"
-        location == null -> "Nie znaleziono adresu"
-        location.addressStreet == "string" -> "Adres nieustawiony"
-        else -> "${location.addressStreet}, ${location.addressCity}"
-    }
-
-    val patientCount = patients.size.toString()
 
     when {
         showStaffManagement -> StaffManagementScreen(onBackClick = { showStaffManagement = false })
         showPatientScreen -> PatientListScreen(onBackClick = { showPatientScreen = false })
+
+        showScheduleScreen -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ScheduleScreen(viewModel = scheduleViewModel, role = "OWNER", userId = 11L)
+                IconButton(
+                    onClick = { showScheduleScreen = false },
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.TopStart)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(50))
+                ) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Wstecz", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+
         else -> {
             Column(
                 modifier = Modifier
@@ -78,15 +85,15 @@ fun BusinessScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = displayTenantName,
+                            text = tenantData?.name ?: "Moja Klinika",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = displayLocationName,
+                            text = if (location != null) "${location.addressStreet}, ${location.addressCity}" else "Brak adresu",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (tenantData == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = { showEditDialog = true }) {
@@ -98,8 +105,11 @@ fun BusinessScreen(
 
                 // --- STATYSTYKI ---
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard(Modifier.weight(1f), "Wizyty", "0", Icons.Default.Event, MaterialTheme.colorScheme.primary)
-                    StatCard(Modifier.weight(1f), "Pacjenci", patientCount, Icons.Default.Group, MaterialTheme.colorScheme.secondary) {
+                    // Licznik wizyt (pobierany z ViewModelu)
+                    StatCard(Modifier.weight(1f), "Wizyty", slots.size.toString(), Icons.Default.Event, MaterialTheme.colorScheme.primary) {
+                        showScheduleScreen = true
+                    }
+                    StatCard(Modifier.weight(1f), "Pacjenci", patients.size.toString(), Icons.Default.Group, MaterialTheme.colorScheme.secondary) {
                         showPatientScreen = true
                     }
                 }
@@ -111,8 +121,12 @@ fun BusinessScreen(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item { BusinessMenuItem("Pracownicy", Icons.Default.Badge) { showStaffManagement = true } }
                     item { BusinessMenuItem("Pacjenci", Icons.Default.People) { showPatientScreen = true } }
-                    item { BusinessMenuItem("Cennik", Icons.Default.Payments) {} }
-
+                    item { BusinessMenuItem("Cennik", Icons.Default.Payments) { /* Akcja dla cennika */ } }
+                    item {
+                        BusinessMenuItem("Grafik", Icons.Default.CalendarMonth) {
+                            showScheduleScreen = true
+                        }
+                    }
                 }
             }
         }
@@ -164,7 +178,7 @@ fun EditTenantDialog(
                             zip = if (digits.length > 2) "${digits.take(2)}-${digits.drop(2)}" else digits
                         }
                     },
-                    label = { Text("Kod pocztowy") },
+                    label = { Text("Kod pocztowy (XX-XXX)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
             }
@@ -174,7 +188,6 @@ fun EditTenantDialog(
     )
 }
 
-// Funkcje StatCard i BusinessMenuItem (bez zmian)
 @Composable
 fun StatCard(modifier: Modifier, title: String, value: String, icon: ImageVector, color: Color, onClick: () -> Unit = {}) {
     Card(modifier = modifier.clickable { onClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)), shape = RoundedCornerShape(16.dp)) {

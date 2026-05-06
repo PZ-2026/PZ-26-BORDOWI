@@ -5,12 +5,10 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.dentflow_android.data.remote.ApiService
-import com.example.dentflow_android.data.remote.LocationRequest
-import com.example.dentflow_android.data.remote.LocationResponse
-import com.example.dentflow_android.data.remote.TenantRequest
-import com.example.dentflow_android.data.remote.TenantResponse
+import com.example.dentflow_android.data.remote.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,44 +20,68 @@ class TenantViewModel @Inject constructor(
     private val _tenantState = mutableStateOf<TenantResponse?>(null)
     val tenantState: State<TenantResponse?> = _tenantState
 
+    private val _servicesState = mutableStateOf<List<ServiceCatalogItemDTO>>(emptyList())
+    val servicesState: State<List<ServiceCatalogItemDTO>> = _servicesState
+
+    // StateFlow dla pokoi, ponieważ użyliśmy .collectAsState() w widoku
+    private val _rooms = MutableStateFlow<List<RoomResponse>>(emptyList())
+    val rooms = _rooms.asStateFlow()
+
     private val TAG = "DENTFLOW_DEBUG"
+
+    // Ładowanie wszystkich danych kliniki (wywoływane w MainActivity/BusinessScreen)
+    fun loadAllTenantData(id: Long) {
+        viewModelScope.launch {
+            loadTenantData(id)
+            loadServices(id)
+            loadRooms(id) // Dodano ładowanie pokoi do ogólnej metody
+        }
+    }
 
     fun loadTenantData(id: Long) {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Próba pobrania danych dla tenantId: $id")
                 val response = apiService.getTenantDetails(id)
-
                 if (response.isSuccessful) {
                     _tenantState.value = response.body()
-                    Log.d(TAG, "Sukces! Pobrano: ${response.body()?.name}")
                 } else {
-                    val errorCode = response.code()
-                    val errorBody = response.errorBody()?.string()
-                    Log.e(TAG, "Błąd serwera: Kod $errorCode - Body: $errorBody")
-
-                    if (errorCode == 403) {
-                        Log.w(TAG, "Wykryto 403. Wstawiam dane fallback, aby odblokować UI.")
-                        _tenantState.value = TenantResponse(
-                            id = id,
-                            name = "Klinika DentFlow (Manual)",
-                            status = "ACTIVE",
-                            locations = listOf(
-                                LocationResponse(
-                                    id = 1,
-                                    tenantId = id,
-                                    name = "Placówka Główna",
-                                    addressStreet = "ul. Rejtana 10",
-                                    addressCity = "Rzeszów",
-                                    addressZip = "35-310",
-                                    addressCountry = "Polska"
-                                )
-                            )
-                        )
-                    }
+                    Log.e(TAG, "Błąd pobierania tenanta: ${response.code()}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Wyjątek sieciowy: ${e.message}")
+                Log.e(TAG, "Wyjątek sieciowy (tenant): ${e.message}")
+            }
+        }
+    }
+
+    fun loadServices(id: Long) {
+        viewModelScope.launch {
+            try {
+                val response = apiService.getServices(id)
+                if (response.isSuccessful) {
+                    _servicesState.value = response.body() ?: emptyList()
+                    Log.d(TAG, "Pobrano usługi: ${_servicesState.value.size}")
+                } else {
+                    Log.e(TAG, "Błąd pobierania usług: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Wyjątek usługi: ${e.message}")
+            }
+        }
+    }
+
+    // Pobieranie listy pokoi z API
+    fun loadRooms(tenantId: Long) {
+        viewModelScope.launch {
+            try {
+                val res = apiService.getRooms(tenantId)
+                if (res.isSuccessful) {
+                    _rooms.value = res.body() ?: emptyList()
+                    Log.d(TAG, "Pobrano pokoje: ${_rooms.value.size}")
+                } else {
+                    Log.e(TAG, "Błąd pobierania pokoi: ${res.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Wyjątek pokoje: ${e.message}")
             }
         }
     }
@@ -78,17 +100,15 @@ class TenantViewModel @Inject constructor(
             )
             try {
                 val currentId = _tenantState.value?.id ?: 1L
-                Log.d(TAG, "Wysyłanie aktualizacji dla tenantId: $currentId")
                 val response = apiService.updateTenant(currentId, request)
-
                 if (response.isSuccessful) {
                     _tenantState.value = response.body()
-                    Log.d(TAG, "Zaktualizowano pomyślnie")
-                } else {
-                    Log.e(TAG, "Błąd zapisu: Kod ${response.code()}")
+                    // Po aktualizacji danych kliniki warto przeładować listę,
+                    // bo adresy lub nazwy lokalizacji mogły się zmienić
+                    loadRooms(currentId)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Wyjątek przy zapisie: ${e.message}")
+                Log.e(TAG, "Błąd zapisu danych firmy: ${e.message}")
             }
         }
     }

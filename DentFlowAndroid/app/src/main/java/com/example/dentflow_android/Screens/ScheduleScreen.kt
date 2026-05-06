@@ -1,0 +1,270 @@
+package com.example.dentflow_android.Screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.ViewModel.ScheduleViewModel
+import com.example.dentflow_android.data.ViewModel.TenantViewModel
+import com.example.dentflow_android.data.remote.ScheduleSlotDTO
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
+
+@Composable
+fun ScheduleScreen(
+    viewModel: ScheduleViewModel,
+    tenantViewModel: TenantViewModel = hiltViewModel(),
+    role: String,
+    userId: Long
+) {
+    val slots by viewModel.slots.collectAsState()
+    val tenantData by tenantViewModel.tenantState
+    val rooms by tenantViewModel.rooms.collectAsState() // Pobieramy pokoje z bazy
+
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var selectedSlot by remember { mutableStateOf<ScheduleSlotDTO?>(null) }
+    var isAdding by remember { mutableStateOf(false) }
+    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
+
+    // Mapy do zamiany ID na nazwy
+    val locationMap = tenantData?.locations?.associate { it.id to it.name } ?: emptyMap()
+    val roomMap = rooms.associate { it.id to it.name }
+
+    val filteredSlots = remember(slots, selectedDate) {
+        slots.filter { it.startAt.take(10) == selectedDate.toString() }
+            .sortedBy { it.startAt }
+    }
+
+    Scaffold(
+        floatingActionButton = {
+            if (role == "OWNER" || role == "ADMIN" || role == "RECEPTIONIST") {
+                FloatingActionButton(
+                    onClick = { isAdding = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                ) { Icon(Icons.Default.Add, "Dodaj") }
+            }
+        }
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+
+            // --- KALENDARZ MIESIĘCZNY (PRZYWRÓCONY) ---
+            Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("GRAFIK PRACY", fontWeight = FontWeight.Black, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
+                                Icon(Icons.Default.ArrowBack, "Poprzedni", tint = MaterialTheme.colorScheme.primary)
+                            }
+                            Text(
+                                text = "${currentMonth.month.getDisplayName(TextStyle.FULL, Locale("pl")).uppercase()} ${currentMonth.year}",
+                                fontWeight = FontWeight.Bold, fontSize = 15.sp
+                            )
+                            IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
+                                Icon(Icons.Default.ArrowForward, "Następny", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+
+                    // Dni tygodnia
+                    val dayHeaders = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "Sb", "Nd")
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                        dayHeaders.forEach { day ->
+                            Text(day, Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Siatka dni
+                    val firstDay = currentMonth.atDay(1)
+                    val startOffset = firstDay.dayOfWeek.value - 1
+                    val daysInMonth = currentMonth.lengthOfMonth()
+                    val totalCells = startOffset + daysInMonth
+                    val rows = (totalCells + 6) / 7
+
+                    Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+                        repeat(rows) { row ->
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                repeat(7) { col ->
+                                    val cellIndex = row * 7 + col
+                                    val dayNumber = cellIndex - startOffset + 1
+
+                                    if (dayNumber in 1..daysInMonth) {
+                                        val date = currentMonth.atDay(dayNumber)
+                                        val isSelected = date == selectedDate
+                                        val isToday = date == LocalDate.now()
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f).height(40.dp).padding(2.dp)
+                                                .background(
+                                                    if (isSelected) MaterialTheme.colorScheme.primary
+                                                    else if (isToday) MaterialTheme.colorScheme.primary.copy(0.15f)
+                                                    else Color.Transparent,
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .clickable { selectedDate = date },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = dayNumber.toString(),
+                                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    } else {
+                                        Box(modifier = Modifier.weight(1f).height(40.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("pl"))).uppercase(),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // --- LISTA WIZYT (Z NAZWAMI GABINETÓW) ---
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (filteredSlots.isEmpty()) {
+                    item { Text("Brak wizyt", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Color.Gray) }
+                }
+
+                items(filteredSlots) { slot ->
+                    Card(modifier = Modifier.fillMaxWidth().clickable { selectedSlot = slot }) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("${slot.startAt.substringAfter("T").take(5)} - ${slot.endAt.substringAfter("T").take(5)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text("Lokalizacja: ${locationMap[slot.locationId] ?: "Lokalizacja ${slot.locationId}"}")
+                                // TU WYŚWIETLA NAZWĘ ZAMIAST ID
+                                Text("Gabinet: ${roomMap[slot.roomId] ?: "Pokój ${slot.roomId}"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                            }
+                            IconButton(onClick = { viewModel.deleteSlot(1L, slot.id, role, userId) }) {
+                                Icon(Icons.Default.Delete, "Usuń", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (isAdding || selectedSlot != null) {
+        SlotEditDialog(
+            initialSlot = selectedSlot,
+            locationMap = locationMap,
+            roomMap = roomMap,
+            onDismiss = { isAdding = false; selectedSlot = null },
+            onConfirm = { slotData ->
+                if (selectedSlot != null) viewModel.updateSlot(1L, selectedSlot!!.id, slotData, role, userId)
+                else viewModel.addSlot(1L, slotData.copy(staffId = userId), role, userId)
+                isAdding = false; selectedSlot = null
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SlotEditDialog(
+    initialSlot: ScheduleSlotDTO?,
+    locationMap: Map<Long, String>,
+    roomMap: Map<Long, String>,
+    onDismiss: () -> Unit,
+    onConfirm: (ScheduleSlotDTO) -> Unit
+) {
+    var date by remember { mutableStateOf(initialSlot?.startAt?.take(10) ?: LocalDate.now().toString()) }
+    var startT by remember { mutableStateOf(initialSlot?.startAt?.substringAfter("T")?.take(5) ?: "10:00") }
+    var endT by remember { mutableStateOf(initialSlot?.endAt?.substringAfter("T")?.take(5) ?: "10:30") }
+
+    var locExpanded by remember { mutableStateOf(false) }
+    var roomExpanded by remember { mutableStateOf(false) }
+
+    var selectedLocId by remember { mutableStateOf(initialSlot?.locationId ?: locationMap.keys.firstOrNull() ?: 1L) }
+    var selectedRoomId by remember { mutableStateOf(initialSlot?.roomId ?: roomMap.keys.firstOrNull() ?: 1L) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initialSlot != null) "Edytuj Slot" else "Nowy Slot") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Data") }, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = startT, onValueChange = { startT = it }, label = { Text("Start") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = endT, onValueChange = { endT = it }, label = { Text("Koniec") }, modifier = Modifier.weight(1f))
+                }
+
+                // Dropdown Lokalizacja
+                ExposedDropdownMenuBox(expanded = locExpanded, onExpandedChange = { locExpanded = !locExpanded }) {
+                    OutlinedTextField(
+                        value = locationMap[selectedLocId] ?: "Wybierz lokalizację",
+                        onValueChange = {}, readOnly = true, label = { Text("Lokalizacja") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(locExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = locExpanded, onDismissRequest = { locExpanded = false }) {
+                        locationMap.forEach { (id, name) ->
+                            DropdownMenuItem(text = { Text(name) }, onClick = { selectedLocId = id; locExpanded = false })
+                        }
+                    }
+                }
+
+                // Dropdown Pokój
+                ExposedDropdownMenuBox(expanded = roomExpanded, onExpandedChange = { roomExpanded = !roomExpanded }) {
+                    OutlinedTextField(
+                        value = roomMap[selectedRoomId] ?: "Wybierz pokój",
+                        onValueChange = {}, readOnly = true, label = { Text("Pokój") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(roomExpanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = roomExpanded, onDismissRequest = { roomExpanded = false }) {
+                        roomMap.forEach { (id, name) ->
+                            DropdownMenuItem(text = { Text(name) }, onClick = { selectedRoomId = id; roomExpanded = false })
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onConfirm(ScheduleSlotDTO(
+                    id = initialSlot?.id ?: 0L,
+                    tenantId = 1L,
+                    staffId = initialSlot?.staffId ?: 0L,
+                    locationId = selectedLocId,
+                    roomId = selectedRoomId,
+                    startAt = "${date}T${startT}:00Z",
+                    endAt = "${date}T${endT}:00Z"
+                ))
+            }) { Text("Zapisz") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Anuluj") } }
+    )
+}
