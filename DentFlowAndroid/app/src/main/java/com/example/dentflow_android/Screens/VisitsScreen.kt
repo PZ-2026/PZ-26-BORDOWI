@@ -1,6 +1,5 @@
 package com.example.dentflow_android.Screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,32 +19,36 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.dentflow_android.data.ViewModel.*
-enum class VisitStatus {
-    CONFIRMED, PENDING, COMPLETED
-}
-
-data class Visit(
-    val id: Int,
-    val patientName: String, // Dla pacjenta to będzie nazwa kliniki/lekarza
-    val procedure: String,
-    val time: String,
-    val duration: String,
-    val status: VisitStatus
-)
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.ViewModel.AppointmentViewModel
+import com.example.dentflow_android.data.remote.AppointmentResponse
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun VisitsScreen(
-    userRole: String = "OWNER" // "OWNER", "ADMIN", "DOCTOR", "PATIENT"
+    // USUNIĘTO: tenantId i userRole z parametrów - ViewModel sam je pobierze
+    viewModel: AppointmentViewModel = hiltViewModel()
 ) {
-    var selectedDate by remember { mutableStateOf(15) }
-    var selectedDoctorFilter by remember { mutableStateOf("Wszyscy") }
+    val appointments by viewModel.appointments.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // Pobieramy rolę z ViewModelu (jeśli ją tam zapisałeś) lub domyślnie "PATIENT"
+    val userRole = "PATIENT"
+
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+
+    // Pobieranie danych przy wejściu lub zmianie daty
+    LaunchedEffect(selectedDate) {
+        viewModel.fetchAppointments(selectedDate)
+    }
 
     Scaffold(
         floatingActionButton = {
             if (userRole != "PATIENT") {
                 FloatingActionButton(
-                    onClick = { /* Dodaj wizytę */ },
+                    onClick = { /* Otwórz okno dodawania wizyty */ },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
@@ -59,7 +62,7 @@ fun VisitsScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
         ) {
-            // NAGŁÓWEK
+            // NAGŁÓWEK EKRANU
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -72,7 +75,7 @@ fun VisitsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Październik 2023",
+                        text = selectedDate.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pl"))),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -80,47 +83,18 @@ fun VisitsScreen(
                 Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
 
-            // FILTR DLA ADMINA/OWNERA
-            if (userRole == "OWNER" || userRole == "ADMIN") {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(bottom = 12.dp)
-                ) {
-                    val doctors = listOf("Wszyscy", "dr Nowak", "dr Kowalski", "dr Wiśniewska")
-                    items(doctors) { doc ->
-                        FilterChip(
-                            selected = selectedDoctorFilter == doc,
-                            onClick = { selectedDoctorFilter = doc },
-                            label = { Text(doc) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
-                                selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondary ),
-                            border = FilterChipDefaults.filterChipBorder( enabled = true,
-                                selected = selectedDoctorFilter == doc,
-                                selectedBorderColor = MaterialTheme.colorScheme.secondary,
-                                borderColor = MaterialTheme.colorScheme.outline
-                            )
-                        )
-                    }
-                }
-            }
-
-            // POZIOMY KALENDARZ (DayItem jest zdefiniowany niżej)
+            // POZIOMY KALENDARZ (15 dni od dzisiaj)
+            val days = remember { (0..14).map { LocalDate.now().plusDays(it.toLong()) } }
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items((12..25).toList()) { day ->
+                items(days) { date ->
                     DayItem(
-                        day = day,
-                        dayName = when(day % 7) {
-                            1->"Pn"; 2->"Wt"; 3->"Śr"; 4->"Cz"; 5->"Pt"; 6->"So"; else->"Nd"
-                        },
-                        isSelected = selectedDate == day,
-                        onSelect = { selectedDate = day }
+                        date = date,
+                        isSelected = selectedDate == date,
+                        onSelect = { selectedDate = date }
                     )
                 }
             }
@@ -128,19 +102,23 @@ fun VisitsScreen(
             Spacer(modifier = Modifier.height(20.dp))
 
             // LISTA WIZYT
-            val visits = listOf(
-                Visit(1, "Anna Nowak", "Konsultacja", "09:00", "30 min", VisitStatus.COMPLETED),
-                Visit(2, "Piotr Zieliński", "Leczenie kanałowe", "10:00", "60 min", VisitStatus.CONFIRMED),
-                Visit(3, "Marek Wiśniewski", "Ekstrakcja", "12:30", "45 min", VisitStatus.PENDING)
-            )
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(visits) { visit ->
-                    UniversalVisitCard(visit, userRole)
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (appointments.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Brak wizyt na ten dzień", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(appointments) { appointment ->
+                        UniversalVisitCard(appointment, userRole)
+                    }
                 }
             }
         }
@@ -148,11 +126,11 @@ fun VisitsScreen(
 }
 
 @Composable
-fun DayItem(day: Int, dayName: String, isSelected: Boolean, onSelect: () -> Unit) {
+fun DayItem(date: LocalDate, isSelected: Boolean, onSelect: () -> Unit) {
     Card(
         modifier = Modifier
-            .width(55.dp)
-            .height(80.dp)
+            .width(60.dp)
+            .height(85.dp)
             .clickable { onSelect() },
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primary
@@ -166,12 +144,12 @@ fun DayItem(day: Int, dayName: String, isSelected: Boolean, onSelect: () -> Unit
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = dayName,
+                text = date.format(DateTimeFormatter.ofPattern("E", Locale("pl"))),
                 fontSize = 12.sp,
                 color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = day.toString(),
+                text = date.dayOfMonth.toString(),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
@@ -181,10 +159,16 @@ fun DayItem(day: Int, dayName: String, isSelected: Boolean, onSelect: () -> Unit
 }
 
 @Composable
-fun UniversalVisitCard(visit: Visit, userRole: String) {
+fun UniversalVisitCard(appointment: AppointmentResponse, userRole: String) {
+    val timeDisplay = try {
+        appointment.startAt.substring(11, 16)
+    } catch (e: Exception) {
+        "--:--"
+    }
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = visit.time,
+            text = timeDisplay,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(55.dp),
             style = MaterialTheme.typography.bodyMedium
@@ -195,10 +179,7 @@ fun UniversalVisitCard(visit: Visit, userRole: String) {
             shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            ),
-            border = if (visit.status == VisitStatus.CONFIRMED)
-                BorderStroke(2.dp, MaterialTheme.colorScheme.secondary)
-            else null
+            )
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -206,16 +187,20 @@ fun UniversalVisitCard(visit: Visit, userRole: String) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (userRole == "PATIENT") "Klinika: DentFlow" else visit.patientName,
+                        text = if (userRole == "PATIENT") "Klinika DentFlow" else "Pacjent ID: ${appointment.patientId}",
                         fontWeight = FontWeight.Bold
                     )
-                    Text(visit.procedure, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = "Usługa ID: ${appointment.serviceItemId}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
-                val statusColor = when(visit.status) {
-                    VisitStatus.CONFIRMED -> Color(0xFF4CAF50)
-                    VisitStatus.PENDING -> Color(0xFFFF9800)
-                    VisitStatus.COMPLETED -> Color.Gray
+                val statusColor = when (appointment.status.uppercase()) {
+                    "CONFIRMED" -> Color(0xFF4CAF50)
+                    "PENDING" -> Color(0xFFFF9800)
+                    "COMPLETED" -> Color.Gray
+                    else -> MaterialTheme.colorScheme.outline
                 }
                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(statusColor))
             }

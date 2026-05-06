@@ -30,13 +30,11 @@ import java.util.Locale
 @Composable
 fun ScheduleScreen(
     viewModel: ScheduleViewModel,
-    tenantViewModel: TenantViewModel = hiltViewModel(),
-    role: String,
-    userId: Long
+    tenantViewModel: TenantViewModel = hiltViewModel()
 ) {
     val slots by viewModel.slots.collectAsState()
     val tenantData by tenantViewModel.tenantState
-    val rooms by tenantViewModel.rooms.collectAsState() // Pobieramy pokoje z bazy
+    val rooms by tenantViewModel.rooms.collectAsState()
 
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var selectedSlot by remember { mutableStateOf<ScheduleSlotDTO?>(null) }
@@ -52,20 +50,24 @@ fun ScheduleScreen(
             .sortedBy { it.startAt }
     }
 
+    // Ładowanie danych przy starcie - ViewModel sam wie dla kogo i gdzie
+    LaunchedEffect(Unit) {
+        viewModel.loadSchedule()
+    }
+
     Scaffold(
         floatingActionButton = {
-            if (role == "OWNER" || role == "ADMIN" || role == "RECEPTIONIST") {
-                FloatingActionButton(
-                    onClick = { isAdding = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                ) { Icon(Icons.Default.Add, "Dodaj") }
-            }
+            // Zakładając, że logika uprawnień jest teraz wewnątrz ViewModelu lub sprawdzana przez sesję
+            FloatingActionButton(
+                onClick = { isAdding = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White
+            ) { Icon(Icons.Default.Add, "Dodaj") }
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
 
-            // --- KALENDARZ MIESIĘCZNY (PRZYWRÓCONY) ---
+            // --- KALENDARZ MIESIĘCZNY ---
             Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
                 Column(modifier = Modifier.padding(bottom = 12.dp)) {
                     Row(
@@ -151,22 +153,21 @@ fun ScheduleScreen(
                 }
             }
 
-            // --- LISTA WIZYT (Z NAZWAMI GABINETÓW) ---
+            // --- LISTA WIZYT ---
             LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (filteredSlots.isEmpty()) {
                     item { Text("Brak wizyt", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Color.Gray) }
                 }
 
-                items(filteredSlots) { slot ->
+                items(filteredSlots, key = { it.id }) { slot ->
                     Card(modifier = Modifier.fillMaxWidth().clickable { selectedSlot = slot }) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("${slot.startAt.substringAfter("T").take(5)} - ${slot.endAt.substringAfter("T").take(5)}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                 Text("Lokalizacja: ${locationMap[slot.locationId] ?: "Lokalizacja ${slot.locationId}"}")
-                                // TU WYŚWIETLA NAZWĘ ZAMIAST ID
                                 Text("Gabinet: ${roomMap[slot.roomId] ?: "Pokój ${slot.roomId}"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                             }
-                            IconButton(onClick = { viewModel.deleteSlot(1L, slot.id, role, userId) }) {
+                            IconButton(onClick = { viewModel.deleteSlot(slot.id) }) { // Poprawione wywołanie
                                 Icon(Icons.Default.Delete, "Usuń", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -183,8 +184,12 @@ fun ScheduleScreen(
             roomMap = roomMap,
             onDismiss = { isAdding = false; selectedSlot = null },
             onConfirm = { slotData ->
-                if (selectedSlot != null) viewModel.updateSlot(1L, selectedSlot!!.id, slotData, role, userId)
-                else viewModel.addSlot(1L, slotData.copy(staffId = userId), role, userId)
+                // Wywołania metod bez tenantId/userId/role
+                if (selectedSlot != null) {
+                    viewModel.updateSlot(selectedSlot!!.id, slotData)
+                } else {
+                    viewModel.addSlot(slotData)
+                }
                 isAdding = false; selectedSlot = null
             }
         )
@@ -256,8 +261,8 @@ fun SlotEditDialog(
             Button(onClick = {
                 onConfirm(ScheduleSlotDTO(
                     id = initialSlot?.id ?: 0L,
-                    tenantId = 1L,
-                    staffId = initialSlot?.staffId ?: 0L,
+                    tenantId = 0L, // ViewModel sam to uzupełni
+                    staffId = initialSlot?.staffId ?: 0L, // ViewModel sam to uzupełni
                     locationId = selectedLocId,
                     roomId = selectedRoomId,
                     startAt = "${date}T${startT}:00Z",

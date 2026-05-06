@@ -1,4 +1,4 @@
-package com.example.dentflow_android.ui.viewmodels
+package com.example.dentflow_android.data.remote
 
 import android.content.SharedPreferences
 import android.util.Log
@@ -14,11 +14,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authService: AuthService,
-<<<<<<< HEAD
-    private val prefs: SharedPreferences // Wstrzykujemy SharedPreferences skonfigurowane w NetworkModule
-=======
     private val prefs: SharedPreferences
->>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
 ) : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
@@ -35,17 +31,17 @@ class AuthViewModel @Inject constructor(
                 val response = authService.login(request)
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-
-<<<<<<< HEAD
-                    // --- KLUCZOWA POPRAWKA: Zapisujemy token do pamięci ---
-                    // Upewnij się, że pole w body nazywa się 'token' lub 'accessToken'
-=======
->>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
                     val token = body.token
 
                     if (!token.isNullOrBlank()) {
-                        prefs.edit().putString("jwt_token", token).apply()
-                        Log.d("AUTH_DEBUG", "Token zapisany pomyślnie w SharedPreferences")
+                        // --- KLUCZOWA POPRAWKA: Zapisujemy wszystkie dane dynamiczne ---
+                        prefs.edit().apply {
+                            putString("jwt_token", token)
+                            putLong("tenant_id", body.tenantId) // Dynamiczne ID kliniki
+                            putLong("user_id", body.userId)     // ID zalogowanego użytkownika
+                            apply()
+                        }
+                        Log.d("AUTH_DEBUG", "Dane sesji (token, tenantId: ${body.tenantId}) zapisane.")
                     } else {
                         Log.e("AUTH_DEBUG", "Serwer zwrócił sukces, ale token jest pusty!")
                     }
@@ -83,12 +79,14 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-<<<<<<< HEAD
-    // Dodatkowa metoda do wylogowania (czyści token)
-=======
->>>>>>> 0e74d92b4a2b1f6b1d9460aa7c5b9827633b416c
     fun logout() {
-        prefs.edit().remove("jwt_token").apply()
-        Log.d("AUTH_DEBUG", "Token usunięty - wylogowano.")
+        // Czyszczenie wszystkich danych sesji
+        prefs.edit().apply {
+            remove("jwt_token")
+            remove("tenant_id")
+            remove("user_id")
+            apply()
+        }
+        Log.d("AUTH_DEBUG", "Dane sesji usunięte - wylogowano.")
     }
 }

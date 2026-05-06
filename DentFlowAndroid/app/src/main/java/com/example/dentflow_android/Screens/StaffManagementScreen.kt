@@ -43,24 +43,71 @@ fun AddStaffDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = fName, onValueChange = { fName = it }, label = { Text("Imię") }, modifier = Modifier.weight(1f), isError = showError && fName.isBlank())
-                    OutlinedTextField(value = lName, onValueChange = { lName = it }, label = { Text("Nazwisko") }, modifier = Modifier.weight(1f), isError = showError && lName.isBlank())
+                    OutlinedTextField(
+                        value = fName,
+                        onValueChange = { fName = it },
+                        label = { Text("Imię") },
+                        modifier = Modifier.weight(1f),
+                        isError = showError && fName.isBlank(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = lName,
+                        onValueChange = { lName = it },
+                        label = { Text("Nazwisko") },
+                        modifier = Modifier.weight(1f),
+                        isError = showError && lName.isBlank(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
                 }
-                OutlinedTextField(value = prof, onValueChange = { prof = it }, label = { Text("Profesja") }, modifier = Modifier.fillMaxWidth(), isError = showError && prof.isBlank())
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = prof,
+                    onValueChange = { prof = it },
+                    label = { Text("Profesja") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = showError && prof.isBlank(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Telefon") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), isError = showError && !isEmailValid)
-                OutlinedTextField(value = pass, onValueChange = { pass = it }, label = { Text("Hasło") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), isError = showError && !isPassValid)
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email (Konto logowania)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = showError && !isEmailValid,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                    value = pass,
+                    onValueChange = { pass = it },
+                    label = { Text("Hasło tymczasowe") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = showError && !isPassValid,
+                    shape = RoundedCornerShape(12.dp)
+                )
             }
         },
         confirmButton = {
-            Button(onClick = {
-                if (fName.isNotBlank() && lName.isNotBlank() && prof.isNotBlank() && isEmailValid && isPassValid) {
-                    onConfirm(fName, lName, prof, email, pass, phone)
-                } else { showError = true }
-            }) { Text("DODAJ") }
+            Button(
+                onClick = {
+                    if (fName.isNotBlank() && lName.isNotBlank() && prof.isNotBlank() && isEmailValid && isPassValid) {
+                        onConfirm(fName, lName, prof, email, pass, phone)
+                    } else { showError = true }
+                },
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("DODAJ") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("ANULUJ") } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("ANULUJ") }
+        }
     )
 }
 
@@ -80,13 +127,13 @@ fun EditStaffDialog(
         title = { Text("Edytuj dane", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = fName, onValueChange = { fName = it }, label = { Text("Imię") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = lName, onValueChange = { lName = it }, label = { Text("Nazwisko") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = prof, onValueChange = { prof = it }, label = { Text("Profesja") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = fName, onValueChange = { fName = it }, label = { Text("Imię") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = lName, onValueChange = { lName = it }, label = { Text("Nazwisko") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = prof, onValueChange = { prof = it }, label = { Text("Profesja") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(fName, lName, prof) }) { Text("ZAPISZ") }
+            Button(onClick = { onConfirm(fName, lName, prof) }, shape = RoundedCornerShape(12.dp)) { Text("ZAPISZ") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("ANULUJ") } }
     )
@@ -104,7 +151,10 @@ fun StaffManagementScreen(
     val staffList by viewModel.staffMembers.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    LaunchedEffect(Unit) { viewModel.loadStaff(1L) }
+    // --- POPRAWKA: Ładowanie bez 1L ---
+    LaunchedEffect(Unit) {
+        viewModel.loadStaff()
+    }
 
     Scaffold(
         topBar = {
@@ -114,7 +164,10 @@ fun StaffManagementScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = MaterialTheme.colorScheme.primary) {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
                 Icon(Icons.Default.PersonAdd, contentDescription = null, tint = Color.White)
             }
         }
@@ -128,11 +181,11 @@ fun StaffManagementScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(staffList) { member ->
+                    items(staffList, key = { it.id }) { member ->
                         StaffItem(
                             member = member,
                             onEdit = { editingMember = member },
-                            onDelete = { viewModel.deleteStaff(1L, member.id) }
+                            onDelete = { viewModel.deleteStaff(member.id) } // --- POPRAWKA ---
                         )
                     }
                 }
@@ -153,7 +206,8 @@ fun StaffManagementScreen(
                     member = member,
                     onDismiss = { editingMember = null },
                     onConfirm = { fn, ln, pr ->
-                        viewModel.updateStaff(1L, member.id, fn, ln, pr, member.userId)
+                        // --- POPRAWKA: Bez tenantId ---
+                        viewModel.updateStaff(member.id, fn, ln, pr, member.userId)
                         editingMember = null
                     }
                 )

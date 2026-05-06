@@ -27,16 +27,14 @@ import java.util.Locale
 
 @Composable
 fun NotificationsScreen(
-    tenantId: Long,
-    userId: Long,
     viewModel: NotificationViewModel = hiltViewModel()
 ) {
-    // Pobieranie stanu powiadomień z ViewModel
+    // Obserwujemy stan powiadomień
     val notifications by viewModel.notifications.collectAsState()
 
-    // Ładowanie powiadomień tylko dla tego użytkownika przy wejściu na ekran
+    // Ładowanie powiadomień przy wejściu na ekran - ViewModel sam wie, jakie jest ID użytkownika
     LaunchedEffect(Unit) {
-        viewModel.fetchNotifications(tenantId, userId)
+        viewModel.fetchNotifications()
     }
 
     Column(
@@ -57,8 +55,8 @@ fun NotificationsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            // Przycisk "Oznacz wszystkie jako przeczytane"
-            TextButton(onClick = { viewModel.markAllAsRead(tenantId, userId) }) {
+            // Przycisk "Oznacz wszystkie" - wywołanie bez parametrów
+            TextButton(onClick = { viewModel.markAllAsRead() }) {
                 Text("Oznacz wszystkie")
             }
         }
@@ -75,12 +73,12 @@ fun NotificationsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                items(notifications) { notification ->
+                items(notifications, key = { it.id }) { notification ->
                     NotificationCard(
                         notification = notification,
                         onClick = {
                             if (!notification.read) {
-                                viewModel.markRead(tenantId, userId, notification.id)
+                                viewModel.markRead(notification.id)
                             }
                         }
                     )
@@ -95,7 +93,6 @@ fun NotificationCard(
     notification: NotificationDTO,
     onClick: () -> Unit
 ) {
-    // Mapowanie ikony na podstawie pola "type" z backendu
     val icon = when (notification.type) {
         "NEW_APPOINTMENT" -> Icons.Default.AddCircle
         "CANCELLED" -> Icons.Default.Cancel
@@ -110,7 +107,6 @@ fun NotificationCard(
         else -> MaterialTheme.colorScheme.primary
     }
 
-    // Formatowanie daty z ISO (np. 2026-05-06T11:36:57)
     val formattedTime = remember(notification.createdAt) {
         try {
             val zdt = ZonedDateTime.parse(notification.createdAt)

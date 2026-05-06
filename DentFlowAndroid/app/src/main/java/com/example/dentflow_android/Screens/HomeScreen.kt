@@ -1,7 +1,6 @@
 package com.example.dentflow_android.Screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,25 +34,28 @@ fun HomeScreen(
     onStaffClick: (StaffMemberResponse) -> Unit,
     staffList: List<StaffMemberResponse>,
     serviceList: List<ServiceCatalogItemDTO>,
-    tenantData: TenantResponse?
+    tenantData: TenantResponse?,
+    isLoading: Boolean = false
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    // Mapowanie danych: Zabieg -> Lokalizacja -> Specjaliści (powiązane przez tenantId)
+    // Mapowanie danych: Zabieg -> Lokalizacja -> Specjaliści
     val displayItems = remember(searchQuery, staffList, serviceList, tenantData) {
         val q = searchQuery.lowercase().trim()
 
-        serviceList.filter { it.active }.map { service ->
-            val location = tenantData?.locations?.find { it.tenantId == service.tenantId }
-            val specialists = staffList.filter { it.tenantId == service.tenantId }
-
-            ServiceDisplayModel(service, location, specialists)
-        }.filter {
-            q.isEmpty() ||
-                    it.service.name.lowercase().contains(q) ||
-                    it.location?.addressCity?.lowercase()?.contains(q) == true ||
-                    it.specialists.any { staff -> staff.displayName.lowercase().contains(q) }
-        }
+        serviceList
+            .filter { it.active }
+            .map { service ->
+                val location = tenantData?.locations?.find { it.tenantId == service.tenantId }
+                val specialists = staffList.filter { it.tenantId == service.tenantId }
+                ServiceDisplayModel(service, location, specialists)
+            }
+            .filter { item ->
+                q.isEmpty() ||
+                        item.service.name.lowercase().contains(q) ||
+                        item.location?.addressCity?.lowercase()?.contains(q) == true ||
+                        item.specialists.any { staff -> staff.displayName.lowercase().contains(q) }
+            }
     }
 
     Column(
@@ -91,26 +94,24 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- LISTA KAFELKÓW ---
-        if (displayItems.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Brak dostępnych usług", color = Color.Gray, fontWeight = FontWeight.Medium)
-                    // Informacja o błędzie 403 z logów
-                    if (serviceList.isEmpty()) {
-                        Text("Błąd połączenia z serwerem (403)", style = MaterialTheme.typography.bodySmall, color = Color.Red)
-                    }
+        // --- OBSŁUGA STANÓW ---
+        when {
+            isLoading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 100.dp)
-            ) {
-                items(displayItems) { item ->
-                    ServiceTile(item, onStaffClick)
+            displayItems.isEmpty() -> {
+                EmptyStateSection(isError = serviceList.isEmpty())
+            }
+            else -> {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 100.dp)
+                ) {
+                    items(displayItems, key = { it.service.id }) { item ->
+                        ServiceTile(item, onStaffClick)
+                    }
                 }
             }
         }
@@ -170,7 +171,7 @@ fun ServiceTile(item: ServiceDisplayModel, onStaffClick: (StaffMemberResponse) -
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            // 3. Specjaliści - Rozwiązanie problemu z image_cc4cb3.png
+            // 3. Specjaliści
             Text(
                 text = "Dostępni specjaliści:",
                 style = MaterialTheme.typography.labelSmall,
@@ -185,7 +186,6 @@ fun ServiceTile(item: ServiceDisplayModel, onStaffClick: (StaffMemberResponse) -
                     modifier = Modifier.padding(top = 4.dp)
                 )
             } else {
-                // FlowRow zapobiega ściskaniu tekstu i przenosi chipsy do nowej linii
                 FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -204,6 +204,26 @@ fun ServiceTile(item: ServiceDisplayModel, onStaffClick: (StaffMemberResponse) -
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyStateSection(isError: Boolean) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.SearchOff, null, modifier = Modifier.size(64.dp), tint = Color.LightGray)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Brak dostępnych usług", color = Color.Gray, fontWeight = FontWeight.Medium)
+
+            if (isError) {
+                Text(
+                    "Błąd autoryzacji lub połączenia (403)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }

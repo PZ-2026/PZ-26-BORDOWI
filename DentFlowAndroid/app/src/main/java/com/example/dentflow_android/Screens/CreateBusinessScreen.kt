@@ -18,11 +18,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.dentflow_android.data.ViewModel.TenantViewModel
 
 @Composable
-fun CreateBusinessScreen(onBusinessCreated: () -> Unit) {
+fun CreateBusinessScreen(
+    onBusinessCreated: () -> Unit,
+    tenantViewModel: TenantViewModel = hiltViewModel()
+) {
     var clinicName by remember { mutableStateOf("") }
     var street by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
@@ -33,13 +36,20 @@ fun CreateBusinessScreen(onBusinessCreated: () -> Unit) {
     var phone by remember { mutableStateOf("") }
 
     var showErrors by remember { mutableStateOf(false) }
-    var isLoading by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+
+    val tenantState by tenantViewModel.tenantState
+    val isLoading by tenantViewModel.isLoading
+
+    LaunchedEffect(tenantState) {
+        if (tenantState != null) {
+            onBusinessCreated()
+        }
+    }
 
     val isFormValid = clinicName.isNotBlank() &&
             city.isNotBlank() &&
-            nip.length == 10 &&
-            phone.length >= 9 &&
+            street.isNotBlank() &&
+            house_number.isNotBlank() &&
             postal_code.length == 6
 
     Column(
@@ -115,7 +125,6 @@ fun CreateBusinessScreen(onBusinessCreated: () -> Unit) {
             errorText = "Podaj miasto"
         )
 
-        // --- KOD POCZTOWY Z AUTOMATYCZNĄ KRESKĄ ---
         BusinessInputField(
             value = postal_code,
             onValueChange = { input ->
@@ -135,48 +144,31 @@ fun CreateBusinessScreen(onBusinessCreated: () -> Unit) {
             errorText = "Format: 00-000"
         )
 
-        BusinessInputField(
-            value = nip,
-            onValueChange = { if (it.length <= 10) nip = it.filter { char -> char.isDigit() } },
-            label = "NIP Firmy",
-            icon = Icons.Default.Badge,
-            keyboardType = KeyboardType.Number,
-            isError = showErrors && nip.length != 10,
-            errorText = "NIP musi mieć 10 cyfr"
-        )
-
-        BusinessInputField(
-            value = phone,
-            onValueChange = { if (it.length <= 12) phone = it.filter { char -> char.isDigit() } },
-            label = "Telefon kontaktowy",
-            icon = Icons.Default.Call,
-            keyboardType = KeyboardType.Phone,
-            isError = showErrors && phone.length < 9,
-            errorText = "Błędny numer telefonu"
-        )
-
         Spacer(modifier = Modifier.height(40.dp))
 
         Button(
             onClick = {
                 if (isFormValid) {
-                    isLoading = true
-                    scope.launch {
-                        delay(1500)
-                        isLoading = false
-                        onBusinessCreated()
-                    }
+                    // POPRAWKA: Przekazujemy 6 argumentów do registerClinic
+                    tenantViewModel.registerClinic(
+                        name = clinicName,
+                        locationName = "Główny Gabinet", // 2. Argument (wymagany)
+                        street = "$street $house_number" + if(apartment_number.isNotBlank()) "/$apartment_number" else "",
+                        city = city,
+                        zip = postal_code,
+                        country = "Polska" // 6. Argument (wymagany)
+                    )
                 } else {
                     showErrors = true
                 }
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            enabled = !isLoading
+            enabled = !isLoading, // Blokujemy przycisk podczas wysyłania
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
         ) {
             if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
             } else {
                 Text("UTWÓRZ PROFIL FIRMY", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
             }
@@ -217,14 +209,11 @@ fun BusinessInputField(
         shape = RoundedCornerShape(12.dp),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = MaterialTheme.colorScheme.secondary,
-            unfocusedTextColor = MaterialTheme.colorScheme.secondary,
-            cursorColor = MaterialTheme.colorScheme.secondary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            cursorColor = MaterialTheme.colorScheme.primary,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedLabelColor = MaterialTheme.colorScheme.primary,
-            errorBorderColor = MaterialTheme.colorScheme.error,
-            errorLabelColor = MaterialTheme.colorScheme.error
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
         )
     )
 }

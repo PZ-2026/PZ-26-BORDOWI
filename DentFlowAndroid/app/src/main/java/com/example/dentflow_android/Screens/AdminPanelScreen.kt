@@ -1,5 +1,6 @@
 package com.example.dentflow_android.Screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -28,9 +29,11 @@ fun AdminPanelScreen(
     val visitCount by viewModel.visitCount.collectAsState()
     val patientCount by viewModel.patientCount.collectAsState()
 
-    // Pobieramy dane przy starcie ekranu
+    // --- KLUCZOWA POPRAWKA ---
+    // Nie przekazujemy już 1L. ViewModel sam pobierze tenantId z SharedPreferences.
     LaunchedEffect(Unit) {
-        viewModel.loadStats(1L)
+        Log.d("ADMIN_SCREEN", "Inicjalizacja statystyk panelu administratora")
+        viewModel.loadStats()
     }
 
     Column(
@@ -59,7 +62,7 @@ fun AdminPanelScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatCard(
-                label = "Dzisiejsze wizyty",
+                label = "Wizyty (łącznie)",
                 value = visitCount,
                 icon = Icons.Default.Event,
                 modifier = Modifier.weight(1f),
@@ -96,10 +99,14 @@ fun AdminPanelScreen(
                 AdminActionCard("Pacjenci", Icons.Default.ContactPage, "Baza danych", onNavigateToPatients)
             }
             item {
-                AdminActionCard("Usługi", Icons.Default.ListAlt, "Cennik", {})
+                AdminActionCard("Usługi", Icons.Default.ListAlt, "Cennik", {
+                    Log.d("ADMIN_SCREEN", "Nawigacja do usług - stub")
+                })
             }
             item {
-                AdminActionCard("Ustawienia", Icons.Default.Settings, "Konfiguracja", {})
+                AdminActionCard("Ustawienia", Icons.Default.Settings, "Konfiguracja", {
+                    Log.d("ADMIN_SCREEN", "Nawigacja do ustawień - stub")
+                })
             }
         }
     }
@@ -139,14 +146,18 @@ fun AdminActionCard(
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(120.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxSize(),
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxSize(),
             verticalArrangement = Arrangement.Center
         ) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)

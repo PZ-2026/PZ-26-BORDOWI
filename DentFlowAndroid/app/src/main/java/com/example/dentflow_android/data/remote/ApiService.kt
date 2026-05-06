@@ -6,6 +6,11 @@ import retrofit2.http.*
 interface ApiService {
 
     // --- TENANTS (KLINIKI) ---
+    @POST("tenants/register")
+    suspend fun registerTenant(
+        @Body request: RegisterTenantRequest
+    ): Response<TenantResponse>
+
     @POST("tenants")
     suspend fun createTenant(
         @Body request: TenantRequest
@@ -21,6 +26,12 @@ interface ApiService {
         @Path("tenantId") tenantId: Long,
         @Body request: TenantRequest
     ): Response<TenantResponse>
+
+    // --- ROOMS (GABINETY) ---
+    @GET("tenants/{tenantId}/rooms")
+    suspend fun getRooms(
+        @Path("tenantId") tenantId: Long
+    ): Response<List<RoomResponse>>
 
     // --- PATIENTS (PACJENCI) ---
     @GET("tenants/{tenantId}/patients")
@@ -66,12 +77,6 @@ interface ApiService {
         @Body request: CreateStaffMemberRequest
     ): Response<StaffMemberResponse>
 
-    @GET("tenants/{tenantId}/staff/{staffId}")
-    suspend fun getStaffMemberById(
-        @Path("tenantId") tenantId: Long,
-        @Path("staffId") staffId: Long
-    ): Response<StaffMemberResponse>
-
     @PUT("tenants/{tenantId}/staff/{staffId}")
     suspend fun updateStaffMember(
         @Path("tenantId") tenantId: Long,
@@ -85,36 +90,44 @@ interface ApiService {
         @Path("staffId") staffId: Long
     ): Response<Unit>
 
-    // --- VISITS & CATALOG ---
-    @GET("tenants/{tenantId}/visits")
-    suspend fun getVisits(
-        @Path("tenantId") tenantId: Long
-    ): Response<List<VisitResponse>>
+    // --- APPOINTMENTS (WIZYTY) ---
+    @GET("tenants/{tenantId}/appointments")
+    suspend fun getAppointments(
+        @Path("tenantId") tenantId: Long,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null
+    ): Response<List<AppointmentResponse>>
+    @POST("tenants/{tenantId}/appointments")
+    suspend fun createAppointment(
+        @Path("tenantId") tenantId: Long,
+        @Body request: CreateAppointmentRequest
+    ): Response<AppointmentResponse>
 
+    // --- CATALOG (USŁUGI) ---
     @GET("tenants/{tenantId}/catalog")
     suspend fun getServices(
         @Path("tenantId") tenantId: Long
     ): Response<List<ServiceCatalogItemDTO>>
 
-    // --- SCHEDULE SLOTS (GRAFIK - WOLNE TERMINY) ---
+    // --- SCHEDULE SLOTS (GRAFIK - TERMINY) ---
     @GET("tenants/{tenantId}/schedule/slots")
     suspend fun getSlots(
         @Path("tenantId") tenantId: Long,
-        @Query("from") from: String,
-        @Query("to") to: String
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null
     ): Response<List<ScheduleSlotDTO>>
 
     @POST("tenants/{tenantId}/schedule/slots")
     suspend fun createSlot(
         @Path("tenantId") tenantId: Long,
-        @Body request: CreateSlotRequest // Zmiana na CreateSlotRequest
+        @Body request: CreateSlotRequest
     ): Response<ScheduleSlotDTO>
 
     @PUT("tenants/{tenantId}/schedule/slots/{slotId}")
     suspend fun updateSlot(
         @Path("tenantId") tenantId: Long,
         @Path("slotId") slotId: Long,
-        @Body request: UpdateSlotRequest // Zmiana na UpdateSlotRequest
+        @Body request: UpdateSlotRequest
     ): Response<ScheduleSlotDTO>
 
     @DELETE("tenants/{tenantId}/schedule/slots/{slotId}")
@@ -135,30 +148,25 @@ interface ApiService {
         @Body request: CreateBlockerRequest
     ): Response<ScheduleBlockerDTO>
 
-    @PUT("tenants/{tenantId}/schedule/blockers/{blockerId}")
-    suspend fun updateBlocker(
-        @Path("tenantId") tenantId: Long,
-        @Path("blockerId") blockerId: Long,
-        @Body request: UpdateBlockerRequest
-    ): Response<ScheduleBlockerDTO>
-
     @DELETE("tenants/{tenantId}/schedule/blockers/{blockerId}")
     suspend fun deleteBlocker(
         @Path("tenantId") tenantId: Long,
         @Path("blockerId") blockerId: Long
     ): Response<Unit>
 
-    @GET("tenants/{tenantId}/room")
-    suspend fun getRooms(
-        @Path("tenantId") tenantId: Long
-    ): Response<List<RoomResponse>>
-
+    // --- NOTIFICATIONS (POWIADOMIENIA) ---
     @GET("tenants/{tenantId}/users/{userId}/notifications")
     suspend fun getNotifications(
         @Path("tenantId") tenantId: Long,
         @Path("userId") userId: Long,
         @Query("unreadOnly") unreadOnly: Boolean = false
     ): Response<List<NotificationDTO>>
+
+    @GET("tenants/{tenantId}/users/{userId}/notifications/unread-count")
+    suspend fun getUnreadCount(
+        @Path("tenantId") tenantId: Long,
+        @Path("userId") userId: Long
+    ): Response<Int>
 
     @POST("tenants/{tenantId}/users/{userId}/notifications/{notificationId}/read")
     suspend fun markAsRead(
@@ -167,15 +175,11 @@ interface ApiService {
         @Path("notificationId") notificationId: Long
     ): Response<NotificationDTO>
 
-    @GET("tenants/{tenantId}/users/{userId}/notifications/unread-count")
-    suspend fun getUnreadCount(
-        @Path("tenantId") tenantId: Long,
-        @Path("userId") userId: Long
-    ): Response<Int>
-
     @POST("tenants/{tenantId}/users/{userId}/notifications/read-all")
     suspend fun markAllNotificationsAsRead(
         @Path("tenantId") tenantId: Long,
         @Path("userId") userId: Long
     ): Response<Unit>
+
+
 }

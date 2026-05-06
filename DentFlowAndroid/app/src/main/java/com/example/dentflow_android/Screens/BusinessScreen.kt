@@ -1,5 +1,6 @@
 package com.example.dentflow_android.Screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -37,12 +38,15 @@ fun BusinessScreen(
     var showScheduleScreen by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
 
-    // --- WCZYTYWANIE DANYCH (Szeroki zakres dla wizyt) ---
+    val TAG = "BUSINESS_SCREEN_DEBUG"
+
+    // --- WCZYTYWANIE DANYCH DYNAMICZNYCH ---
     LaunchedEffect(Unit) {
-        tenantViewModel.loadTenantData(1L)
-        patientViewModel.loadPatients(1L)
-        // Ładujemy dane z szerokim zakresem, aby złapać wizyty z przeszłości
-        scheduleViewModel.loadSchedule(tenantId = 1L, userId = 11L, role = "OWNER")
+        Log.d(TAG, "Inicjalizacja ekranu Business - pobieranie danych dynamicznych")
+        // Wszystkie metody ładujące nie przyjmują już parametrów, biorą je z SharedPreferences
+        tenantViewModel.loadAllTenantData()
+        patientViewModel.loadPatients()
+        scheduleViewModel.loadSchedule()
     }
 
     val tenantData by tenantViewModel.tenantState
@@ -57,7 +61,8 @@ fun BusinessScreen(
 
         showScheduleScreen -> {
             Box(modifier = Modifier.fillMaxSize()) {
-                ScheduleScreen(viewModel = scheduleViewModel, role = "OWNER", userId = 11L)
+                // ScheduleScreen również został zaktualizowany o dynamiczne sesje
+                ScheduleScreen(viewModel = scheduleViewModel)
                 IconButton(
                     onClick = { showScheduleScreen = false },
                     modifier = Modifier
@@ -85,13 +90,13 @@ fun BusinessScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = tenantData?.name ?: "Moja Klinika",
+                            text = tenantData?.name ?: "Pobieranie...",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = if (location != null) "${location.addressStreet}, ${location.addressCity}" else "Brak adresu",
+                            text = if (location != null) "${location.addressStreet}, ${location.addressCity}" else "Ładowanie adresu...",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -105,7 +110,6 @@ fun BusinessScreen(
 
                 // --- STATYSTYKI ---
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Licznik wizyt (pobierany z ViewModelu)
                     StatCard(Modifier.weight(1f), "Wizyty", slots.size.toString(), Icons.Default.Event, MaterialTheme.colorScheme.primary) {
                         showScheduleScreen = true
                     }
@@ -128,6 +132,16 @@ fun BusinessScreen(
                         }
                     }
                 }
+
+                // Jeśli tenantData jest null po ładowaniu, wyświetlamy pomocny komunikat
+                if (tenantData == null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Brak skonfigurowanej kliniki. Kliknij ikonę edycji, aby zarejestrować gabinet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }
@@ -138,6 +152,8 @@ fun BusinessScreen(
             currentLocation = location,
             onDismiss = { showEditDialog = false },
             onConfirm = { name, loc, street, city, zip ->
+                Log.d(TAG, "Zapisywanie danych firmy: $name, $city")
+                // Wywołanie poprawionej metody saveBusinessData, która obsługuje register/update
                 tenantViewModel.saveBusinessData(name, loc, street, city, zip)
                 showEditDialog = false
             }
@@ -158,17 +174,18 @@ fun EditTenantDialog(
     var city by remember { mutableStateOf(currentLocation?.addressCity?.takeIf { it != "string" } ?: "") }
     var zip by remember { mutableStateOf(currentLocation?.addressZip?.takeIf { it != "string" } ?: "") }
 
+    // Prosta walidacja polskiego kodu pocztowego
     val isZipValid = zip.length == 6 && zip.contains("-")
     val canSave = name.isNotBlank() && locName.isNotBlank() && street.isNotBlank() && city.isNotBlank() && isZipValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Konfiguracja Firmy") },
+        title = { Text("Konfiguracja Kliniki") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nazwa Firmy") })
-                OutlinedTextField(value = locName, onValueChange = { locName = it }, label = { Text("Nazwa Lokalizacji") })
-                OutlinedTextField(value = street, onValueChange = { street = it }, label = { Text("Ulica") })
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nazwa Kliniki") })
+                OutlinedTextField(value = locName, onValueChange = { locName = it }, label = { Text("Nazwa Lokalizacji (np. Główna)") })
+                OutlinedTextField(value = street, onValueChange = { street = it }, label = { Text("Ulica i nr") })
                 OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("Miasto") })
                 OutlinedTextField(
                     value = zip,

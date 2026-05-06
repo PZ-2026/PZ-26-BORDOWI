@@ -10,7 +10,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -21,9 +24,8 @@ import com.example.dentflow_android.ui.theme.DentFlowAndroidTheme
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dentflow_android.Screens.*
-import com.example.dentflow_android.data.ViewModel.NotificationViewModel
-import com.example.dentflow_android.data.ViewModel.StaffViewModel
-import com.example.dentflow_android.data.ViewModel.TenantViewModel
+import com.example.dentflow_android.data.ViewModel.*
+import java.time.LocalDate
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -37,11 +39,13 @@ class MainActivity : ComponentActivity() {
             DentFlowAndroidTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
 
+                // Pobieramy ViewModel tutaj, aby przekazać go do ekranu tworzenia
+                val tenantViewModel: TenantViewModel = hiltViewModel()
+
                 NavHost(navController = navController, startDestination = "login") {
                     composable("login") {
                         LoginScreen(
-                            onLoginSuccess = { tenantId ->
-                                // Docelowo zapisz tenantId i userId w SharedPreferences lub DataStore
+                            onLoginSuccess = {
                                 navController.navigate("main_dashboard") {
                                     popUpTo("login") { inclusive = true }
                                 }
@@ -61,7 +65,8 @@ class MainActivity : ComponentActivity() {
                         MainDashboard(
                             isDarkTheme = isDarkTheme,
                             onThemeChange = { isDarkTheme = it },
-                            navController = navController
+                            navController = navController,
+                            tenantViewModel = tenantViewModel // Przekazujemy ten sam VM
                         )
                     }
 
@@ -73,24 +78,20 @@ class MainActivity : ComponentActivity() {
                         PatientListScreen(onBackClick = { navController.popBackStack() })
                     }
 
+                    // POPRAWIONA TRASA: Teraz używa rzeczywistego ekranu CreateTenantScreen
+                    composable("create_tenant_form") {
+                        CreateTenantScreen(
+                            onBack = { navController.popBackStack() },
+                            tenantViewModel = tenantViewModel
+                        )
+                    }
+
                     composable("appointment_setup/{staffId}") { backStackEntry ->
                         val staffId = backStackEntry.arguments?.getString("staffId")?.toLongOrNull() ?: 0L
-
                         Column(modifier = Modifier.fillMaxSize().padding(32.dp).statusBarsPadding()) {
-                            Text(
-                                text = "Rezerwacja wizyty",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Rezerwacja wizyty", style = MaterialTheme.typography.headlineMedium)
                             Text("Wybrany lekarz ID: $staffId")
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(
-                                onClick = { navController.popBackStack() },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Wróć do listy")
-                            }
+                            Button(onClick = { navController.popBackStack() }) { Text("Wróć") }
                         }
                     }
                 }
@@ -106,54 +107,46 @@ fun MainDashboard(
     navController: NavHostController,
     staffViewModel: StaffViewModel = hiltViewModel(),
     tenantViewModel: TenantViewModel = hiltViewModel(),
-    notificationViewModel: NotificationViewModel = hiltViewModel()
+    notificationViewModel: NotificationViewModel = hiltViewModel(),
+    appointmentViewModel: AppointmentViewModel = hiltViewModel()
 ) {
     var selectedItem by remember { mutableIntStateOf(0) }
     var isShowingSettings by remember { mutableStateOf(false) }
 
-    // Dane do testów (docelowo pobierz z SharedPreferences po logowaniu)
-    val currentTenantId = 1L
-    val currentUserId = 5L
-
-    // Obserwowanie danych (używamy collectAsState dla Flow, aby uniknąć lagów)
     val staffList by staffViewModel.staffMembers.collectAsState()
     val tenantData by tenantViewModel.tenantState
-    val serviceList by remember { derivedStateOf { tenantViewModel.servicesState.value } }
+    val serviceList by tenantViewModel.servicesState
 
-    // Inicjalizacja danych - LaunchedEffect gwarantuje, że nie zablokujemy UI
+    // Przypisanie do lokalnej zmiennej naprawia błąd "Smart cast is impossible"
+    val currentTenant = tenantData
+
     LaunchedEffect(Unit) {
-        staffViewModel.loadStaff(currentTenantId)
-        tenantViewModel.loadAllTenantData(currentTenantId)
-        notificationViewModel.fetchNotifications(currentTenantId, currentUserId)
+        staffViewModel.loadStaff()
+        tenantViewModel.loadAllTenantData()
+        notificationViewModel.fetchNotifications()
+        appointmentViewModel.fetchAppointments(LocalDate.now())
     }
 
-    val items = listOf("Home", "Firma", "Admin", "Grafik", "Alarmy", "Konto")
+    val items = listOf("Home", "Firma", "Admin", "Wizyty", "Alarmy", "Konto")
     val icons = listOf(
         Icons.Default.Home,
         Icons.Default.Business,
         Icons.Default.AdminPanelSettings,
-        Icons.Default.CalendarMonth, // Zmiana ikony na bardziej pasującą do grafiku
+        Icons.Default.CalendarMonth,
         Icons.Default.Notifications,
         Icons.Default.AccountCircle
     )
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 items.forEachIndexed { index, item ->
                     NavigationBarItem(
                         icon = {
                             BadgedBox(badge = {
-                                // Pokazujemy kropkę przy "Alarmach" jeśli są nieprzeczytane
                                 if (index == 4) {
                                     val unreadCount by notificationViewModel.unreadCount.collectAsState()
-                                    if (unreadCount > 0) {
-                                        Badge { Text(unreadCount.toString()) }
-                                    }
+                                    if (unreadCount > 0) Badge { Text(unreadCount.toString()) }
                                 }
                             }) {
                                 Icon(icons[index], contentDescription = item)
@@ -182,21 +175,21 @@ fun MainDashboard(
                         navController.navigate("appointment_setup/${staff.id}")
                     }
                 )
-                1 -> BusinessScreen()
+                1 -> {
+                    if (currentTenant == null || currentTenant.id == 0L) {
+                        EmptyTenantView(
+                            onCreateClick = { navController.navigate("create_tenant_form") }
+                        )
+                    } else {
+                        BusinessScreen()
+                    }
+                }
                 2 -> AdminPanelScreen(
                     onNavigateToStaff = { navController.navigate("staff_management") },
                     onNavigateToPatients = { navController.navigate("patient_list") }
                 )
-                3 -> ScheduleScreen(
-                    viewModel = hiltViewModel(),
-                    role = "ADMIN", // Docelowo pobierz z sesji
-                    userId = currentUserId
-                )
-                4 -> NotificationsScreen(
-                    tenantId = currentTenantId,
-                    userId = currentUserId,
-                    viewModel = notificationViewModel
-                )
+                3 -> VisitsScreen(viewModel = appointmentViewModel)
+                4 -> NotificationsScreen(viewModel = notificationViewModel)
                 5 -> {
                     if (!isShowingSettings) {
                         AccountScreen(
@@ -217,6 +210,48 @@ fun MainDashboard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun EmptyTenantView(onCreateClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.AddBusiness,
+            contentDescription = null,
+            modifier = Modifier.size(100.dp),
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "Brak aktywnej kliniki",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Aby zacząć zarządzać wizytami i kadrą, musisz najpierw utworzyć profil swojej kliniki.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Button(
+            onClick = onCreateClick,
+            modifier = Modifier.fillMaxWidth(0.8f),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Utwórz nową klinikę", fontSize = 16.sp)
         }
     }
 }

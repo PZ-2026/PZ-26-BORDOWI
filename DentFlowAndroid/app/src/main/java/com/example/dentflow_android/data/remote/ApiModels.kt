@@ -2,11 +2,41 @@ package com.example.dentflow_android.data.remote
 
 import com.google.gson.annotations.SerializedName
 
+// --- TENANTS & REGISTRATION ---
+
 data class TenantResponse(
     val id: Long,
     val name: String,
     val status: String? = null,
     val locations: List<LocationResponse>? = emptyList()
+)
+
+// Używane do POST /tenants/register (tworzenie nowej kliniki)
+data class RegisterTenantRequest(
+    val name: String,
+    val location: AddLocationRequest
+)
+
+data class AddLocationRequest(
+    val name: String,
+    val addressStreet: String,
+    val addressCity: String,
+    val addressZip: String,
+    val addressCountry: String = "Polska"
+)
+
+data class TenantRequest(
+    val name: String,
+    val location: LocationRequest
+)
+
+data class LocationRequest(
+    val name: String,
+    val addressStreet: String,
+    val addressCity: String,
+    val addressZip: String,
+    val addressCountry: String = "Polska",
+    val phone: String = ""
 )
 
 data class LocationResponse(
@@ -20,15 +50,38 @@ data class LocationResponse(
     val phone: String? = null
 )
 
+// --- PATIENTS ---
+
 data class PatientResponse(
     val id: Long,
     val tenantId: Long,
+    val userId: Long? = null,
     val firstName: String,
     val lastName: String,
     val email: String? = null,
     val phone: String,
     val notes: String? = null
 )
+
+data class CreatePatientRequest(
+    val userId: Long? = null,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phone: String,
+    val notes: String = ""
+)
+
+data class UpdatePatientRequest(
+    val userId: Long? = null,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phone: String,
+    val notes: String = ""
+)
+
+// --- STAFF ---
 
 data class StaffMemberResponse(
     val id: Long,
@@ -38,98 +91,67 @@ data class StaffMemberResponse(
     val profession: String
 )
 
-data class VisitResponse(
+data class CreateStaffMemberRequest(
+    val userId: Long,
+    val displayName: String,
+    val profession: String
+)
+
+data class UpdateStaffMemberRequest(
+    val userId: Long,
+    val displayName: String,
+    val profession: String
+)
+
+// --- APPOINTMENTS (Wizyty) ---
+
+data class AppointmentResponse(
     val id: Long,
     val tenantId: Long,
-    val patientId: Long,
-    val staffId: Long? = null,
-    val startTime: String,
-    val endTime: String? = null,
-    val description: String? = null,
-    val status: String
-)
-
-data class ServiceCatalogItemDTO(
-    val id: Long,
-    @SerializedName("tenant_id")
-    val tenantId: Long,
-
-    val name: String,
-
-    @SerializedName("duration_minutes")
-    val durationMinutes: Int,
-
-    @SerializedName("price_cents")
-    val priceCents: Long,
-
-    val active: Boolean
-)
-data class LocationRequest(
-    val name: String,
-    val addressStreet: String,
-    val addressCity: String,
-    val addressZip: String,
-    val addressCountry: String = "Polska",
-    val phone: String = ""
-)
-
-data class TenantRequest(
-    val name: String,
-    val location: LocationRequest
-)
-data class CreateSlotRequest(
-    val staffId: Long,
     val locationId: Long,
     val roomId: Long,
-    val startAt: String, // format ISO
-    val endAt: String
+    val dentistStaffId: Long,
+    val patientId: Long,
+    val serviceItemId: Long,
+    val startAt: String, // Zmienione z startTime zgodnie z API
+    val endAt: String,   // Zmienione z endTime zgodnie z API
+    val status: String,
+    val notes: String? = null,
+    val createdByUserId: Long? = null
 )
 
-// Żądanie aktualizacji istniejącego slotu
-data class UpdateSlotRequest(
+data class CreateAppointmentRequest(
     val locationId: Long,
     val roomId: Long,
-    val startAt: String,
-    val endAt: String
-)
-// Żądanie utworzenia blokady
-data class CreateBlockerRequest(
-    val staffId: Long,
-    val roomId: Long,
-    val startAt: String,
-    val endAt: String,
-    val reason: String
-)
-
-// Żądanie aktualizacji blokady
-data class UpdateBlockerRequest(
-    val roomId: Long,
-    val startAt: String,
-    val endAt: String,
-    val reason: String
-)
-
-data class CreateVisitRequest(
+    val dentistStaffId: Long,
     val patientId: Long,
-    val staffId: Long,
-    val slotId: Long? = null, // Jeśli wizyta jest przypięta do konkretnego slotu
-    val startTime: String,
-    val endTime: String,
-    val description: String? = null
+    val serviceItemId: Long,
+    val startAt: String,
+    val endAt: String,
+    val createdByUserId: Long,
+    val notes: String = ""
 )
 
-// Slot - dostępny termin
+// --- SCHEDULING (Sloty i Blokady) ---
+
 data class ScheduleSlotDTO(
     val id: Long,
     val tenantId: Long,
     val staffId: Long,
     val locationId: Long,
     val roomId: Long,
-    val startAt: String, // ISO Date-time
+    val startAt: String,
     val endAt: String
 )
 
-// Blocker - przerwa/urlop
+data class CreateSlotRequest(
+    val staffId: Long,
+    val locationId: Long,
+    val roomId: Long,
+    val startAt: String,
+    val endAt: String
+)
+
 data class ScheduleBlockerDTO(
     val id: Long,
     val tenantId: Long,
@@ -140,6 +162,23 @@ data class ScheduleBlockerDTO(
     val reason: String
 )
 
+data class CreateBlockerRequest(
+    val staffId: Long,
+    val roomId: Long,
+    val startAt: String,
+    val endAt: String,
+    val reason: String
+)
+
+data class UpdateSlotRequest(
+    val locationId: Long,
+    val roomId: Long,
+    val startAt: String,
+    val endAt: String
+)
+
+// --- OTHERS ---
+
 data class RoomResponse(
     val id: Long,
     val tenantId: Long,
@@ -147,27 +186,16 @@ data class RoomResponse(
     val name: String
 )
 
-data class CreatePatientRequest(
-    val firstName: String,
-    val lastName: String,
-    val email: String,
-    val phone: String,
-    val notes: String = ""
-)
-
-data class CreateStaffMemberRequest(
-    @SerializedName("userId")
-    val userId: Long,
-    @SerializedName("displayName")
-    val displayName: String,
-    @SerializedName("profession")
-    val profession: String
-)
-
-data class UpdateStaffMemberRequest(
-    val userId: Long,
-    val displayName: String,
-    val profession: String
+data class ServiceCatalogItemDTO(
+    val id: Long,
+    @SerializedName("tenant_id")
+    val tenantId: Long,
+    val name: String,
+    @SerializedName("duration_minutes")
+    val durationMinutes: Int,
+    @SerializedName("price_cents")
+    val priceCents: Long,
+    val active: Boolean
 )
 
 data class NotificationDTO(

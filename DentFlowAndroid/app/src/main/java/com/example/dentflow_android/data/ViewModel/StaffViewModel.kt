@@ -1,5 +1,6 @@
 package com.example.dentflow_android.data.ViewModel
 
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class StaffViewModel @Inject constructor(
     private val apiService: ApiService,
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val prefs: SharedPreferences // Dodajemy prefs dla dynamicznego tenantId
 ) : ViewModel() {
 
     private val _staffMembers = MutableStateFlow<List<StaffMemberResponse>>(emptyList())
@@ -26,51 +28,68 @@ class StaffViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // --- ŁADOWANIE DANYCH (Poprawione, aby nic nie pominąć) ---
+    private val TAG = "STAFF_VM_DEBUG"
 
-    fun loadAllData(tenantId: Long) {
+    // Dynamiczne pobieranie tenantId z sesji
+    private val currentTenantId: Long
+        get() = prefs.getLong("tenant_id", -1L)
+
+    private fun hasValidSession(): Boolean {
+        if (currentTenantId == -1L) {
+            Log.e(TAG, "BŁĄD: Próba operacji na personelu bez tenantId!")
+            return false
+        }
+        return true
+    }
+
+    // --- ŁADOWANIE DANYCH ---
+
+    fun loadAllData() {
+        if (!hasValidSession()) return
+
         viewModelScope.launch {
             _isLoading.value = true
-            Log.d("DEBUG_DATA", "Rozpoczynam pobieranie dla tenantId: $tenantId")
+            Log.d(TAG, "Rozpoczynam pobieranie personelu i usług dla tenantId: $currentTenantId")
             try {
-                val staffDef = async { apiService.getStaffMembers(tenantId) }
-                val servicesDef = async { apiService.getServices(tenantId) }
+                // Wykonujemy zapytania równolegle dla szybkości
+                val staffDef = async { apiService.getStaffMembers(currentTenantId) }
+                val servicesDef = async { apiService.getServices(currentTenantId) }
 
                 val sRes = staffDef.await()
                 val vRes = servicesDef.await()
 
                 if (sRes.isSuccessful) {
                     _staffMembers.value = sRes.body() ?: emptyList()
-                    Log.d("DEBUG_DATA", "Pobrano lekarzy: ${sRes.body()?.size}")
+                    Log.d(TAG, "Pobrano pracowników: ${sRes.body()?.size}")
                 } else {
-                    Log.e("DEBUG_DATA", "Błąd lekarzy: ${sRes.code()} - ${sRes.errorBody()?.string()}")
+                    Log.e(TAG, "Błąd pobierania pracowników: ${sRes.code()}")
                 }
 
                 if (vRes.isSuccessful) {
                     _services.value = vRes.body() ?: emptyList()
-                    Log.d("DEBUG_DATA", "Pobrano usługi: ${vRes.body()?.size}")
-                } else {
-                    Log.e("DEBUG_DATA", "Błąd usług: ${vRes.code()} - ${vRes.errorBody()?.string()}")
+                    Log.d(TAG, "Pobrano usługi z katalogu: ${vRes.body()?.size}")
                 }
 
             } catch (e: Exception) {
-                Log.e("DEBUG_DATA", "Wyjątek sieciowy: ${e.message}")
+                Log.e(TAG, "Wyjątek podczas loadAllData: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun loadStaff(tenantId: Long) {
+    fun loadStaff() {
+        if (!hasValidSession()) return
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val response = apiService.getStaffMembers(tenantId)
+                val response = apiService.getStaffMembers(currentTenantId)
                 if (response.isSuccessful) {
                     _staffMembers.value = response.body() ?: emptyList()
+                    Log.d(TAG, "Odświeżono listę personelu")
                 }
             } catch (e: Exception) {
-                Log.e("STAFF_VM", "Exception loadStaff: ${e.message}")
+                Log.e(TAG, "Exception loadStaff: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -78,11 +97,14 @@ class StaffViewModel @Inject constructor(
     }
 
 
-    // --- ZARZĄDZANIE PERSONELEM (Twoje oryginalne funkcje) ---
+    // --- ZARZĄDZANIE PERSONELEM ---
 
     fun addStaff(fName: String, lName: String, profession: String, email: String, password: String, phone: String) {
+        if (!hasValidSession()) return
+
         viewModelScope.launch {
             _isLoading.value = true
+            Log.d(TAG, "ETAP 1: Rejestracja konta użytkownika dla: $email")
             try {
                 val registerRequest = RegisterRequest(
                     email = email,
@@ -92,58 +114,75 @@ class StaffViewModel @Inject constructor(
                     phone = phone
                 )
 
+                // 1. Najpierw tworzymy konto w systemie Auth
                 val authResponse = authService.register(registerRequest)
 
                 if (authResponse.isSuccessful && authResponse.body() != null) {
                     val createdUserId = authResponse.body()!!.userId
+                    Log.d(TAG, "Konto utworzone pomyślnie. UserId: $createdUserId. ETAP 2: Przypisanie do kliniki")
+
                     if (createdUserId != 0L) {
                         val staffRequest = CreateStaffMemberRequest(
                             userId = createdUserId,
                             displayName = "$fName $lName",
                             profession = profession
                         )
-                        // Używamy tenantId = 1L zgodnie z Twoim oryginałem
-                        val coreResponse = apiService.createStaffMember(1L, staffRequest)
+
+                        // 2. Potem tworzymy rekord pracownika w konkretnej klinice (tenantId)
+                        val coreResponse = apiService.createStaffMember(currentTenantId, staffRequest)
                         if (coreResponse.isSuccessful) {
-                            loadStaff(1L)
+                            Log.d(TAG, "Pracownik pomyślnie przypisany do kliniki $currentTenantId")
+                            loadStaff()
+                        } else {
+                            Log.e(TAG, "Błąd ETAPU 2 (przypisanie): ${coreResponse.code()}")
                         }
                     }
+                } else {
+                    Log.e(TAG, "Błąd ETAPU 1 (rejestracja): ${authResponse.code()}")
                 }
             } catch (e: Exception) {
-                Log.e("STAFF_VM", "Exception addStaff: ${e.message}")
+                Log.e(TAG, "Wyjątek addStaff: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun updateStaff(tenantId: Long, staffId: Long, fName: String, lName: String, profession: String, userId: Long) {
+    fun updateStaff(staffId: Long, fName: String, lName: String, profession: String, userId: Long) {
+        if (!hasValidSession()) return
+
         viewModelScope.launch {
+            Log.d(TAG, "Aktualizacja pracownika ID: $staffId")
             try {
                 val updateRequest = UpdateStaffMemberRequest(
                     userId = userId,
                     displayName = "$fName $lName",
                     profession = profession
                 )
-                val response = apiService.updateStaffMember(tenantId, staffId, updateRequest)
+                val response = apiService.updateStaffMember(currentTenantId, staffId, updateRequest)
                 if (response.isSuccessful) {
-                    loadStaff(tenantId)
+                    Log.d(TAG, "Pracownik zaktualizowany")
+                    loadStaff()
                 }
             } catch (e: Exception) {
-                Log.e("STAFF_VM", "Exception updateStaff: ${e.message}")
+                Log.e(TAG, "Exception updateStaff: ${e.message}")
             }
         }
     }
 
-    fun deleteStaff(tenantId: Long, staffId: Long) {
+    fun deleteStaff(staffId: Long) {
+        if (!hasValidSession()) return
+
         viewModelScope.launch {
+            Log.d(TAG, "Usuwanie pracownika ID: $staffId z kliniki $currentTenantId")
             try {
-                val response = apiService.deleteStaffMember(tenantId, staffId)
+                val response = apiService.deleteStaffMember(currentTenantId, staffId)
                 if (response.isSuccessful) {
-                    loadStaff(tenantId)
+                    Log.d(TAG, "Pracownik usunięty")
+                    loadStaff()
                 }
             } catch (e: Exception) {
-                Log.e("STAFF_VM", "Exception deleteStaff: ${e.message}")
+                Log.e(TAG, "Exception deleteStaff: ${e.message}")
             }
         }
     }

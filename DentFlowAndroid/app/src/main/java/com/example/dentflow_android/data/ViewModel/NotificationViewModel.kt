@@ -1,88 +1,91 @@
 package com.example.dentflow_android.data.ViewModel
 
-import android.util.Log
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.dentflow_android.data.remote.*
+import com.example.dentflow_android.data.remote.ApiService
+import com.example.dentflow_android.data.remote.NotificationDTO
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class NotificationViewModel @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val sharedPrefs: SharedPreferences
 ) : ViewModel() {
 
     private val _notifications = MutableStateFlow<List<NotificationDTO>>(emptyList())
-    val notifications = _notifications.asStateFlow()
+    val notifications: StateFlow<List<NotificationDTO>> = _notifications
 
     private val _unreadCount = MutableStateFlow(0)
-    val unreadCount = _unreadCount.asStateFlow()
+    val unreadCount: StateFlow<Int> = _unreadCount
 
-    private val TAG = "NotificationVM"
+    private fun getSessionData(): Pair<Long, Long> {
+        val tenantId = sharedPrefs.getLong("tenant_id", -1L)
+        val userId = sharedPrefs.getLong("user_id", -1L)
+        return Pair(tenantId, userId)
+    }
 
-    // Pobieranie pełnej listy powiadomień
-    fun fetchNotifications(tenantId: Long, userId: Long) {
+    fun fetchNotifications() {
+        val (tenantId, userId) = getSessionData()
+        if (tenantId == -1L || userId == -1L) return
+
         viewModelScope.launch {
             try {
-                val res = apiService.getNotifications(tenantId, userId)
-                if (res.isSuccessful) {
-                    _notifications.value = res.body() ?: emptyList()
-                    // Po pobraniu listy warto od razu odświeżyć licznik nieprzeczytanych
-                    updateUnreadCount(tenantId, userId)
-                } else {
-                    Log.e(TAG, "Błąd pobierania powiadomień: ${res.code()}")
+                // 1. Pobieranie listy
+                val response = apiService.getNotifications(tenantId, userId)
+                if (response.isSuccessful) {
+                    _notifications.value = response.body() ?: emptyList()
+                }
+
+                // 2. Pobieranie licznika nieprzeczytanych
+                val countResponse = apiService.getUnreadCount(tenantId, userId)
+                if (countResponse.isSuccessful) {
+                    _unreadCount.value = countResponse.body() ?: 0
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Wyjątek sieciowy: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
 
-    // Aktualizacja samego licznika (wywoływana wewnętrznie lub np. przez polling)
-    fun updateUnreadCount(tenantId: Long, userId: Long) {
+    fun markAllAsRead() {
+        val (tenantId, userId) = getSessionData()
+        if (tenantId == -1L || userId == -1L) return
+
         viewModelScope.launch {
             try {
-                val res = apiService.getUnreadCount(tenantId, userId)
-                if (res.isSuccessful) {
-                    _unreadCount.value = res.body() ?: 0
+                // UŻYTO TWOJEJ NAZWY: markAllNotificationsAsRead
+                val response = apiService.markAllNotificationsAsRead(tenantId, userId)
+                if (response.isSuccessful) {
+                    fetchNotifications() // Odświeżamy dane
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Błąd licznika: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
 
-    // Oznaczanie pojedynczego powiadomienia jako przeczytane
-    fun markRead(tenantId: Long, userId: Long, notificationId: Long) {
-        viewModelScope.launch {
-            try {
-                val res = apiService.markAsRead(tenantId, userId, notificationId)
-                if (res.isSuccessful) {
-                    // Odświeżamy dane, aby UI zareagował na zmianę stanu 'read'
-                    fetchNotifications(tenantId, userId)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Błąd oznaczania powiadomienia: ${e.message}")
-            }
-        }
-    }
+    fun markRead(notificationId: Long) {
+        val (tenantId, userId) = getSessionData()
+        if (tenantId == -1L || userId == -1L) return
 
-    // --- DODANA METODA: Oznaczanie wszystkich jako przeczytane ---
-    fun markAllAsRead(tenantId: Long, userId: Long) {
         viewModelScope.launch {
             try {
-                val res = apiService.markAllNotificationsAsRead(tenantId, userId)
-                if (res.isSuccessful) {
-                    // Po sukcesie przeładowujemy listę i licznik
-                    fetchNotifications(tenantId, userId)
-                } else {
-                    Log.e(TAG, "Błąd oznaczania wszystkich: ${res.code()}")
+                // UŻYTO TWOJEJ NAZWY: markAsRead
+                val response = apiService.markAsRead(tenantId, userId, notificationId)
+                if (response.isSuccessful) {
+                    // Aktualizujemy lokalnie, żeby UI zareagował natychmiast
+                    _notifications.value = _notifications.value.map {
+                        if (it.id == notificationId) it.copy(read = true) else it
+                    }
+                    _unreadCount.value = (_unreadCount.value - 1).coerceAtLeast(0)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Błąd markAllAsRead: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
