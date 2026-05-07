@@ -4,12 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,193 +22,206 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.dentflow_android.data.ViewModel.AppointmentViewModel
 import com.example.dentflow_android.data.remote.AppointmentResponse
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
 fun VisitsScreen(
-    // USUNIĘTO: tenantId i userRole z parametrów - ViewModel sam je pobierze
     viewModel: AppointmentViewModel = hiltViewModel()
 ) {
     val appointments by viewModel.appointments.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // Pobieramy rolę z ViewModelu (jeśli ją tam zapisałeś) lub domyślnie "PATIENT"
-    val userRole = "PATIENT"
-
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
+    var isHistoryMode by remember { mutableStateOf(false) }
 
-    // Pobieranie danych przy wejściu lub zmianie daty
-    LaunchedEffect(selectedDate) {
-        viewModel.fetchAppointments(selectedDate)
+    LaunchedEffect(selectedDate, isHistoryMode) {
+        if (isHistoryMode) {
+            // Zakładamy, że fetchAppointments bez daty lub z null pobierze wszystko
+            // Jeśli nie masz takiej metody, użyj daty z bardzo dalekiej przeszłości
+            viewModel.fetchAppointments(LocalDate.of(2000, 1, 1))
+        } else {
+            viewModel.fetchAppointments(selectedDate)
+        }
     }
 
-    Scaffold(
-        floatingActionButton = {
-            if (userRole != "PATIENT") {
-                FloatingActionButton(
-                    onClick = { /* Otwórz okno dodawania wizyty */ },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
-                }
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(padding)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // NAGŁÓWEK EKRANU
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+            Column {
+                Text(
+                    text = if (isHistoryMode) "Pełna Historia" else "Terminarz",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!isHistoryMode) {
                     Text(
-                        text = if (userRole == "PATIENT") "Moje Wizyty" else "Terminarz Kliniki",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = selectedDate.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pl"))),
+                        text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pl"))).replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
 
-            // POZIOMY KALENDARZ (15 dni od dzisiaj)
-            val days = remember { (0..14).map { LocalDate.now().plusDays(it.toLong()) } }
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(days) { date ->
-                    DayItem(
-                        date = date,
-                        isSelected = selectedDate == date,
-                        onSelect = { selectedDate = date }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // LISTA WIZYT
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (appointments.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Brak wizyt na ten dzień", color = Color.Gray)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(appointments) { appointment ->
-                        UniversalVisitCard(appointment, userRole)
-                    }
-                }
+            IconButton(onClick = { isHistoryMode = !isHistoryMode }) {
+                Icon(
+                    imageVector = if (isHistoryMode) Icons.Default.CalendarMonth else Icons.Default.History,
+                    contentDescription = "Przełącz historię",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
-    }
-}
 
-@Composable
-fun DayItem(date: LocalDate, isSelected: Boolean, onSelect: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .width(60.dp)
-            .height(85.dp)
-            .clickable { onSelect() },
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = date.format(DateTimeFormatter.ofPattern("E", Locale("pl"))),
-                fontSize = 12.sp,
-                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = date.dayOfMonth.toString(),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-fun UniversalVisitCard(appointment: AppointmentResponse, userRole: String) {
-    val timeDisplay = try {
-        appointment.startAt.substring(11, 16)
-    } catch (e: Exception) {
-        "--:--"
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = timeDisplay,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(55.dp),
-            style = MaterialTheme.typography.bodyMedium
-        )
-
-        Card(
-            modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-            )
-        ) {
+        if (!isHistoryMode) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (userRole == "PATIENT") "Klinika DentFlow" else "Pacjent ID: ${appointment.patientId}",
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Usługa ID: ${appointment.serviceItemId}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
+                    Icon(Icons.Default.ChevronLeft, contentDescription = null)
                 }
-
-                val statusColor = when (appointment.status.uppercase()) {
-                    "CONFIRMED" -> Color(0xFF4CAF50)
-                    "PENDING" -> Color(0xFFFF9800)
-                    "COMPLETED" -> Color.Gray
-                    else -> MaterialTheme.colorScheme.outline
+                Text(
+                    text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM", Locale("pl"))).uppercase(),
+                    style = MaterialTheme.typography.labelLarge
+                )
+                IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = null)
                 }
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(statusColor))
             }
+
+            CalendarGrid(
+                currentMonth = currentMonth,
+                selectedDate = selectedDate,
+                onDateSelected = { selectedDate = it }
+            )
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 8.dp), thickness = 1.dp, color = Color.LightGray.copy(alpha = 0.3f))
+
+        if (isLoading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (appointments.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("Brak wizyt", color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(appointments) { appointment ->
+                    UniversalVisitCard(appointment, showDate = isHistoryMode)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarGrid(
+    currentMonth: YearMonth,
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    val daysInMonth = currentMonth.lengthOfMonth()
+    val firstDayOfMonth = currentMonth.atDay(1).dayOfWeek.value
+    val days = (1..daysInMonth).toList()
+    val weekDays = listOf("Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd")
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            weekDays.forEach { day ->
+                Text(
+                    text = day,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier.height(240.dp),
+            userScrollEnabled = false
+        ) {
+            items(firstDayOfMonth - 1) { Spacer(modifier = Modifier.fillMaxSize()) }
+            items(days) { day ->
+                val date = currentMonth.atDay(day)
+                val isSelected = date == selectedDate
+                val isToday = date == LocalDate.now()
+
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1f)
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else if (isToday) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                        .clickable { onDateSelected(date) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = day.toString(),
+                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UniversalVisitCard(appointment: AppointmentResponse, showDate: Boolean = false) {
+    val timeDisplay = try { appointment.startAt.substring(11, 16) } catch (e: Exception) { "--:--" }
+    val dateDisplay = try { appointment.startAt.substring(0, 10) } catch (e: Exception) { "" }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.width(65.dp)) {
+                Text(text = timeDisplay, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                if (showDate) {
+                    Text(text = dateDisplay, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Leczenie ID: ${appointment.serviceItemId}", fontWeight = FontWeight.SemiBold)
+                Text(text = "Status: ${appointment.status}", style = MaterialTheme.typography.bodySmall)
+            }
+
+            val statusColor = when (appointment.status.uppercase()) {
+                "CONFIRMED" -> Color(0xFF4CAF50)
+                "COMPLETED" -> Color.Gray
+                "CANCELLED" -> Color.Red
+                else -> Color(0xFFFF9800)
+            }
+            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(statusColor))
         }
     }
 }

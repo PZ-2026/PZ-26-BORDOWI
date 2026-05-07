@@ -11,12 +11,6 @@ data class TenantResponse(
     val locations: List<LocationResponse>? = emptyList()
 )
 
-// Używane do POST /tenants/register (tworzenie nowej kliniki)
-data class RegisterTenantRequest(
-    val name: String,
-    val location: AddLocationRequest
-)
-
 data class AddLocationRequest(
     val name: String,
     val addressStreet: String,
@@ -29,6 +23,17 @@ data class TenantRequest(
     val name: String,
     val location: LocationRequest
 )
+
+data class RegisterTenantRequest(
+    val name: String,
+    val locationName: String,
+    val addressStreet: String,
+    val addressCity: String,
+    val addressZip: String,
+    val addressCountry: String
+)
+
+
 
 data class LocationRequest(
     val name: String,
@@ -188,12 +193,9 @@ data class RoomResponse(
 
 data class ServiceCatalogItemDTO(
     val id: Long,
-    @SerializedName("tenant_id")
     val tenantId: Long,
     val name: String,
-    @SerializedName("duration_minutes")
     val durationMinutes: Int,
-    @SerializedName("price_cents")
     val priceCents: Long,
     val active: Boolean
 )

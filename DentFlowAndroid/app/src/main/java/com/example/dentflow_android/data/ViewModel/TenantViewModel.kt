@@ -33,7 +33,6 @@ class TenantViewModel @Inject constructor(
 
     private val TAG = "DENTFLOW_DEBUG"
 
-    // OSZUSTWO 1: Traktujemy 0 i -1 jako "BRAK KLINIKI"
     private val currentTenantId: Long
         get() {
             val id = prefs.getLong("tenant_id", -1L)
@@ -76,53 +75,44 @@ class TenantViewModel @Inject constructor(
         }
     }
 
-    // OSZUSTWO 2: Wymuszamy POST i udajemy "nowego" użytkownika
     fun registerClinic(
         name: String,
         locationName: String,
         street: String,
         city: String,
         zip: String,
-        country: String = "Polska"
+        country: String = "Polska",
+
     ) {
         viewModelScope.launch {
             _isLoading.value = true
 
-            // CZYŚCIMY PREFS przed wysłaniem, żeby interceptor nie dodał nagłówka X-Tenant-ID: 0
             prefs.edit().remove("tenant_id").apply()
 
             val request = RegisterTenantRequest(
                 name = name,
-                location = AddLocationRequest(
-                    name = locationName,
-                    addressStreet = street,
-                    addressCity = city,
-                    addressZip = zip,
-                    addressCountry = country
-                )
+                locationName = locationName,
+                addressStreet = street,
+                addressCity = city,
+                addressZip = zip,
+                addressCountry = country
             )
 
             try {
                 val token = prefs.getString("token", "Brak tokenu")
                 Log.d("DENTFLOW_TOKEN", "Mój token to: Bearer $token")
-                Log.d(TAG, ">>> OSZUKANA REJESTRACJA (POST) START <<<")
                 val response = apiService.registerTenant(request)
 
                 if (response.isSuccessful && response.body() != null) {
                     val newTenant = response.body()!!
-                    Log.d(TAG, ">>> SUKCES! Serwer nadał nowe ID: ${newTenant.id}")
-
-                    // Zapisujemy nowe, PRAWIDŁOWE ID (np. 12, a nie 0)
                     prefs.edit().putLong("tenant_id", newTenant.id).apply()
                     _tenantState.value = newTenant
                     loadAllTenantData()
                 } else {
                     val errorBody = response.errorBody()?.string()
-                    Log.e(TAG, ">>> BŁĄD REJESTRACJI <<< Kod: ${response.code()}, Body: $errorBody")
+                    Log.e(TAG, "Błąd rejestracji: ${response.code()}, Body: $errorBody")
 
-                    // Jeśli serwer dalej wypluwa 403, spróbujmy jednak AKTUALIZACJI jako plan B
                     if (response.code() == 403) {
-                        Log.d(TAG, "Próba ratunkowa: Aktualizacja ID 0...")
                         saveBusinessData(name, locationName, street, city, zip)
                     }
                 }
@@ -134,9 +124,7 @@ class TenantViewModel @Inject constructor(
         }
     }
 
-    // AKTUALIZACJA (PUT)
     fun saveBusinessData(name: String, locName: String, street: String, city: String, zip: String) {
-        // Jeśli nie mamy ID, próbujemy uderzyć w 0 (nasze "puste" konto)
         val id = prefs.getLong("tenant_id", 0L)
 
         viewModelScope.launch {
@@ -152,28 +140,23 @@ class TenantViewModel @Inject constructor(
                 )
             )
             try {
-                Log.d(TAG, "Aktualizacja kliniki pod ID: $id")
                 val response = apiService.updateTenant(id, request)
                 if (response.isSuccessful) {
                     _tenantState.value = response.body()
                     response.body()?.id?.let {
                         prefs.edit().putLong("tenant_id", it).apply()
                     }
-                    Log.d(TAG, "Sukces edycji!")
                 } else {
                     Log.e(TAG, "Błąd edycji: ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Błąd edycji: ${e.message}")
-                val token = prefs.getString("token", "Brak tokenu")
-                Log.d("DENTFLOW_TOKEN", "Mój token to: Bearer $token")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // --- METODY POMOCNICZE (Bez zmian) ---
     fun loadServices(id: Long) {
         viewModelScope.launch {
             try {
@@ -199,5 +182,4 @@ class TenantViewModel @Inject constructor(
             }
         }
     }
-
 }

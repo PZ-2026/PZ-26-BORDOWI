@@ -97,12 +97,24 @@ interface ApiService {
         @Query("from") from: String? = null,
         @Query("to") to: String? = null
     ): Response<List<AppointmentResponse>>
+
     @POST("tenants/{tenantId}/appointments")
     suspend fun createAppointment(
         @Path("tenantId") tenantId: Long,
         @Body request: CreateAppointmentRequest
     ): Response<AppointmentResponse>
 
+    @POST("tenants/{tenantId}/appointments/{appointmentId}/complete")
+    suspend fun completeAppointment(
+        @Path("tenantId") tenantId: Long,
+        @Path("appointmentId") appointmentId: Long
+    ): Response<AppointmentResponse>
+
+    @POST("tenants/{tenantId}/appointments/{appointmentId}/cancel")
+    suspend fun cancelAppointment(
+        @Path("tenantId") tenantId: Long,
+        @Path("appointmentId") appointmentId: Long
+    ): Response<AppointmentResponse>
     // --- CATALOG (USŁUGI) ---
     @GET("tenants/{tenantId}/catalog")
     suspend fun getServices(
