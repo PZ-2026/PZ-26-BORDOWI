@@ -13,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -38,8 +37,6 @@ class MainActivity : ComponentActivity() {
 
             DentFlowAndroidTheme(darkTheme = isDarkTheme) {
                 val navController = rememberNavController()
-
-                // Pobieramy ViewModel tutaj, aby przekazać go do ekranu tworzenia
                 val tenantViewModel: TenantViewModel = hiltViewModel()
 
                 NavHost(navController = navController, startDestination = "login") {
@@ -66,7 +63,7 @@ class MainActivity : ComponentActivity() {
                             isDarkTheme = isDarkTheme,
                             onThemeChange = { isDarkTheme = it },
                             navController = navController,
-                            tenantViewModel = tenantViewModel // Przekazujemy ten sam VM
+                            tenantViewModel = tenantViewModel
                         )
                     }
 
@@ -78,7 +75,10 @@ class MainActivity : ComponentActivity() {
                         PatientListScreen(onBackClick = { navController.popBackStack() })
                     }
 
-                    // POPRAWIONA TRASA: Teraz używa rzeczywistego ekranu CreateTenantScreen
+                    composable("catalog_management") {
+                        CatalogListScreen(onBackClick = { navController.popBackStack() })
+                    }
+
                     composable("create_tenant_form") {
                         CreateTenantScreen(
                             onBack = { navController.popBackStack() },
@@ -108,7 +108,7 @@ fun MainDashboard(
     staffViewModel: StaffViewModel = hiltViewModel(),
     tenantViewModel: TenantViewModel = hiltViewModel(),
     notificationViewModel: NotificationViewModel = hiltViewModel(),
-    appointmentViewModel: AppointmentViewModel = hiltViewModel()
+    visitViewModel: VisitViewModel = hiltViewModel()
 ) {
     var selectedItem by remember { mutableIntStateOf(0) }
     var isShowingSettings by remember { mutableStateOf(false) }
@@ -117,14 +117,13 @@ fun MainDashboard(
     val tenantData by tenantViewModel.tenantState
     val serviceList by tenantViewModel.servicesState
 
-    // Przypisanie do lokalnej zmiennej naprawia błąd "Smart cast is impossible"
     val currentTenant = tenantData
 
     LaunchedEffect(Unit) {
         staffViewModel.loadStaff()
         tenantViewModel.loadAllTenantData()
         notificationViewModel.fetchNotifications()
-        appointmentViewModel.fetchAppointments(LocalDate.now())
+        visitViewModel.refreshVisits()
     }
 
     val items = listOf("Home", "Firma", "Admin", "Wizyty", "Alarmy", "Konto")
@@ -186,9 +185,10 @@ fun MainDashboard(
                 }
                 2 -> AdminPanelScreen(
                     onNavigateToStaff = { navController.navigate("staff_management") },
-                    onNavigateToPatients = { navController.navigate("patient_list") }
+                    onNavigateToPatients = { navController.navigate("patient_list") },
+                    onNavigateToCatalog = { navController.navigate("catalog_management") }
                 )
-                3 -> VisitsScreen(viewModel = appointmentViewModel)
+                3 -> VisitsScreen(viewModel = visitViewModel)
                 4 -> NotificationsScreen(viewModel = notificationViewModel)
                 5 -> {
                     if (!isShowingSettings) {
@@ -217,9 +217,7 @@ fun MainDashboard(
 @Composable
 fun EmptyTenantView(onCreateClick: () -> Unit) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+        modifier = Modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -233,25 +231,16 @@ fun EmptyTenantView(onCreateClick: () -> Unit) {
         Text(
             text = "Brak aktywnej kliniki",
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "Aby zacząć zarządzać wizytami i kadrą, musisz najpierw utworzyć profil swojej kliniki.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = onCreateClick,
-            modifier = Modifier.fillMaxWidth(0.8f),
-            contentPadding = PaddingValues(16.dp)
+            modifier = Modifier.fillMaxWidth(0.8f)
         ) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Utwórz nową klinikę", fontSize = 16.sp)
+            Text("Utwórz nową klinikę")
         }
     }
 }

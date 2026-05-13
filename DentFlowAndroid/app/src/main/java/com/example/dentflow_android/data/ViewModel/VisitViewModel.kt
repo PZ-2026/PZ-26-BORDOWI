@@ -14,14 +14,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class VisitWithPatient(
-    val visit: AppointmentResponse, // Zmienione z VisitResponse zgodnie z nowym ApiService
+    val visit: AppointmentResponse,
     val patient: PatientResponse?
 )
 
 @HiltViewModel
 class VisitViewModel @Inject constructor(
     private val apiService: ApiService,
-    private val prefs: SharedPreferences // Wstrzykujemy SharedPreferences
+    private val prefs: SharedPreferences
 ) : ViewModel() {
 
     private val _visits = MutableStateFlow<List<VisitWithPatient>>(emptyList())
@@ -32,7 +32,6 @@ class VisitViewModel @Inject constructor(
 
     private val TAG = "VISIT_VM_DEBUG"
 
-    // Dynamiczne pobieranie tenantId z sesji
     private val currentTenantId: Long
         get() = prefs.getLong("tenant_id", -1L)
 
@@ -42,26 +41,17 @@ class VisitViewModel @Inject constructor(
 
     fun refreshVisits() {
         val tenantId = currentTenantId
-        if (tenantId == -1L) {
-            Log.e(TAG, "Błąd: Brak tenantId w sesji. Nie można pobrać wizyt.")
-            return
-        }
+        if (tenantId == -1L) return
         fetchVisitsWithPatients(tenantId)
     }
 
     private fun fetchVisitsWithPatients(tenantId: Long) {
         viewModelScope.launch {
             _isLoading.value = true
-            Log.d(TAG, "Pobieranie wizyt dla kliniki: $tenantId")
             try {
-                // Zmieniono na getAppointments() zgodnie z Twoim poprawionym ApiService
                 val response = apiService.getAppointments(tenantId)
-
                 if (response.isSuccessful) {
                     val appointmentList = response.body() ?: emptyList()
-                    Log.d(TAG, "Pobrano ${appointmentList.size} wizyt. Rozpoczynam wiązanie z pacjentami...")
-
-                    // OPTYMALIZACJA: Pobieramy dane pacjentów równolegle (async)
                     val combinedList = appointmentList.map { appointment ->
                         async {
                             val patientRes = apiService.getPatientById(tenantId, appointment.patientId)
@@ -71,34 +61,38 @@ class VisitViewModel @Inject constructor(
                             )
                         }
                     }.awaitAll()
-
                     _visits.value = combinedList
-                    Log.d(TAG, "Dane wizyt i pacjentów połączone pomyślnie.")
-                } else {
-                    Log.e(TAG, "Błąd pobierania wizyt: ${response.code()}")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Wyjątek podczas pobierania wizyt: ${e.message}")
+                Log.e(TAG, "Error: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // Dodawanie nowej wizyty (przykład użycia dynamicznego ID)
-    fun createAppointment(request: CreateAppointmentRequest) {
+    fun fetchPatientHistory(patientId: Long) {
         val tenantId = currentTenantId
         if (tenantId == -1L) return
 
         viewModelScope.launch {
+            _isLoading.value = true
             try {
-                val res = apiService.createAppointment(tenantId, request)
-                if (res.isSuccessful) {
-                    Log.d(TAG, "Wizyta utworzona pomyślnie.")
-                    refreshVisits()
+                val response = apiService.getPatientVisits(tenantId, patientId)
+                if (response.isSuccessful) {
+                    val historyList = response.body() ?: emptyList()
+
+                    val patientRes = apiService.getPatientById(tenantId, patientId)
+                    val patientData = if (patientRes.isSuccessful) patientRes.body() else null
+
+                    _visits.value = historyList.map {
+                        VisitWithPatient(visit = it, patient = patientData)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Błąd tworzenia wizyty: ${e.message}")
+                Log.e(TAG, "Error: ${e.message}")
+            } finally {
+                _isLoading.value = false
             }
         }
     }

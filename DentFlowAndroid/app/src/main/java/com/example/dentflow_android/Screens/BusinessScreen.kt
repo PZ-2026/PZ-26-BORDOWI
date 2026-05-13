@@ -36,14 +36,12 @@ fun BusinessScreen(
     var showStaffManagement by remember { mutableStateOf(false) }
     var showPatientScreen by remember { mutableStateOf(false) }
     var showScheduleScreen by remember { mutableStateOf(false) }
+    var showCatalogScreen by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
 
     val TAG = "BUSINESS_SCREEN_DEBUG"
 
-    // --- WCZYTYWANIE DANYCH DYNAMICZNYCH ---
     LaunchedEffect(Unit) {
-        Log.d(TAG, "Inicjalizacja ekranu Business - pobieranie danych dynamicznych")
-        // Wszystkie metody ładujące nie przyjmują już parametrów, biorą je z SharedPreferences
         tenantViewModel.loadAllTenantData()
         patientViewModel.loadPatients()
         scheduleViewModel.loadSchedule()
@@ -52,16 +50,17 @@ fun BusinessScreen(
     val tenantData by tenantViewModel.tenantState
     val patients by patientViewModel.patients.collectAsState()
     val slots by scheduleViewModel.slots.collectAsState()
+    val services by tenantViewModel.servicesState
 
     val location = tenantData?.locations?.firstOrNull()
 
     when {
         showStaffManagement -> StaffManagementScreen(onBackClick = { showStaffManagement = false })
         showPatientScreen -> PatientListScreen(onBackClick = { showPatientScreen = false })
+        showCatalogScreen -> CatalogListScreen(onBackClick = { showCatalogScreen = false })
 
         showScheduleScreen -> {
             Box(modifier = Modifier.fillMaxSize()) {
-                // ScheduleScreen również został zaktualizowany o dynamiczne sesje
                 ScheduleScreen(viewModel = scheduleViewModel)
                 IconButton(
                     onClick = { showScheduleScreen = false },
@@ -70,7 +69,7 @@ fun BusinessScreen(
                         .align(Alignment.TopStart)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(50))
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Wstecz", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.ArrowBack, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -82,7 +81,6 @@ fun BusinessScreen(
                     .background(MaterialTheme.colorScheme.background)
                     .padding(16.dp)
             ) {
-                // --- NAGŁÓWEK ---
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -102,19 +100,21 @@ fun BusinessScreen(
                         )
                     }
                     IconButton(onClick = { showEditDialog = true }) {
-                        Icon(imageVector = Icons.Default.Edit, contentDescription = "Edytuj")
+                        Icon(imageVector = Icons.Default.Edit, contentDescription = null)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // --- STATYSTYKI ---
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard(Modifier.weight(1f), "Wizyty", slots.size.toString(), Icons.Default.Event, MaterialTheme.colorScheme.primary) {
                         showScheduleScreen = true
                     }
                     StatCard(Modifier.weight(1f), "Pacjenci", patients.size.toString(), Icons.Default.Group, MaterialTheme.colorScheme.secondary) {
                         showPatientScreen = true
+                    }
+                    StatCard(Modifier.weight(1f), "Cennik", services.size.toString(), Icons.Default.Payments, MaterialTheme.colorScheme.tertiary) {
+                        showCatalogScreen = true
                     }
                 }
 
@@ -125,15 +125,10 @@ fun BusinessScreen(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     item { BusinessMenuItem("Pracownicy", Icons.Default.Badge) { showStaffManagement = true } }
                     item { BusinessMenuItem("Pacjenci", Icons.Default.People) { showPatientScreen = true } }
-                    item { BusinessMenuItem("Cennik", Icons.Default.Payments) { /* Akcja dla cennika */ } }
-                    item {
-                        BusinessMenuItem("Grafik", Icons.Default.CalendarMonth) {
-                            showScheduleScreen = true
-                        }
-                    }
+                    item { BusinessMenuItem("Cennik", Icons.Default.Payments) { showCatalogScreen = true } }
+                    item { BusinessMenuItem("Grafik", Icons.Default.CalendarMonth) { showScheduleScreen = true } }
                 }
 
-                // Jeśli tenantData jest null po ładowaniu, wyświetlamy pomocny komunikat
                 if (tenantData == null) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -152,8 +147,6 @@ fun BusinessScreen(
             currentLocation = location,
             onDismiss = { showEditDialog = false },
             onConfirm = { name, loc, street, city, zip ->
-                Log.d(TAG, "Zapisywanie danych firmy: $name, $city")
-                // Wywołanie poprawionej metody saveBusinessData, która obsługuje register/update
                 tenantViewModel.saveBusinessData(name, loc, street, city, zip)
                 showEditDialog = false
             }
@@ -174,7 +167,6 @@ fun EditTenantDialog(
     var city by remember { mutableStateOf(currentLocation?.addressCity?.takeIf { it != "string" } ?: "") }
     var zip by remember { mutableStateOf(currentLocation?.addressZip?.takeIf { it != "string" } ?: "") }
 
-    // Prosta walidacja polskiego kodu pocztowego
     val isZipValid = zip.length == 6 && zip.contains("-")
     val canSave = name.isNotBlank() && locName.isNotBlank() && street.isNotBlank() && city.isNotBlank() && isZipValid
 
@@ -184,7 +176,7 @@ fun EditTenantDialog(
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nazwa Kliniki") })
-                OutlinedTextField(value = locName, onValueChange = { locName = it }, label = { Text("Nazwa Lokalizacji (np. Główna)") })
+                OutlinedTextField(value = locName, onValueChange = { locName = it }, label = { Text("Nazwa Lokalizacji") })
                 OutlinedTextField(value = street, onValueChange = { street = it }, label = { Text("Ulica i nr") })
                 OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("Miasto") })
                 OutlinedTextField(

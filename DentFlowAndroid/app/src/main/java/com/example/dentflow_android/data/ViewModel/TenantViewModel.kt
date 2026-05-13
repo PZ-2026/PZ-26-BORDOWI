@@ -50,6 +50,7 @@ class TenantViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
+                // Używamy async/await lub po prostu odpalamy loadery
                 loadTenantData(id)
                 loadServices(id)
                 loadRooms(id)
@@ -82,11 +83,9 @@ class TenantViewModel @Inject constructor(
         city: String,
         zip: String,
         country: String = "Polska",
-
     ) {
         viewModelScope.launch {
             _isLoading.value = true
-
             prefs.edit().remove("tenant_id").apply()
 
             val request = RegisterTenantRequest(
@@ -99,19 +98,13 @@ class TenantViewModel @Inject constructor(
             )
 
             try {
-                val token = prefs.getString("token", "Brak tokenu")
-                Log.d("DENTFLOW_TOKEN", "Mój token to: Bearer $token")
                 val response = apiService.registerTenant(request)
-
                 if (response.isSuccessful && response.body() != null) {
                     val newTenant = response.body()!!
                     prefs.edit().putLong("tenant_id", newTenant.id).apply()
                     _tenantState.value = newTenant
                     loadAllTenantData()
                 } else {
-                    val errorBody = response.errorBody()?.string()
-                    Log.e(TAG, "Błąd rejestracji: ${response.code()}, Body: $errorBody")
-
                     if (response.code() == 403) {
                         saveBusinessData(name, locationName, street, city, zip)
                     }
@@ -124,9 +117,96 @@ class TenantViewModel @Inject constructor(
         }
     }
 
+    // --- LOGIKA CENNIKA (ZABIEGÓW) ---
+
+    fun loadServices(id: Long = currentTenantId) {
+        if (id == -1L) return
+        viewModelScope.launch {
+            try {
+                val response = apiService.getServices(id)
+                if (response.isSuccessful) {
+                    _servicesState.value = response.body() ?: emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Błąd usług: ${e.message}")
+            }
+        }
+    }
+
+    fun addService(name: String, priceCents: Int, duration: Int) {
+        val tId = currentTenantId
+        if (tId == -1L) return
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val request = ServiceCatalogRequest(name, duration, priceCents, true)
+                val response = apiService.createService(tId, request)
+                if (response.isSuccessful) {
+                    loadServices(tId) // Odśwież listę po sukcesie
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Błąd dodawania: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateService(serviceId: Long, name: String, priceCents: Int, duration: Int, active: Boolean) {
+        val tId = currentTenantId
+        if (tId == -1L) return
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val request = ServiceCatalogRequest(name, duration, priceCents, active)
+                val response = apiService.updateService(tId, serviceId, request)
+                if (response.isSuccessful) {
+                    loadServices(tId)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Błąd edycji: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun deleteService(serviceId: Long) {
+        val tId = currentTenantId
+        if (tId == -1L) return
+
+        viewModelScope.launch {
+            try {
+                val response = apiService.deleteService(tId, serviceId)
+                if (response.isSuccessful) {
+                    // Usuwamy lokalnie z listy, żeby nie przeładowywać całości (szybsze UI)
+                    _servicesState.value = _servicesState.value.filter { it.id != serviceId }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Błąd usuwania: ${e.message}")
+            }
+        }
+    }
+
+
+
+    fun loadRooms(id: Long) {
+        viewModelScope.launch {
+            try {
+                val res = apiService.getRooms(id)
+                if (res.isSuccessful) {
+                    _rooms.value = res.body() ?: emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Błąd pokoi: ${e.message}")
+            }
+        }
+    }
+
     fun saveBusinessData(name: String, locName: String, street: String, city: String, zip: String) {
         val id = prefs.getLong("tenant_id", 0L)
-
         viewModelScope.launch {
             _isLoading.value = true
             val request = TenantRequest(
@@ -146,39 +226,11 @@ class TenantViewModel @Inject constructor(
                     response.body()?.id?.let {
                         prefs.edit().putLong("tenant_id", it).apply()
                     }
-                } else {
-                    Log.e(TAG, "Błąd edycji: ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Błąd edycji: ${e.message}")
             } finally {
                 _isLoading.value = false
-            }
-        }
-    }
-
-    fun loadServices(id: Long) {
-        viewModelScope.launch {
-            try {
-                val response = apiService.getServices(id)
-                if (response.isSuccessful) {
-                    _servicesState.value = response.body() ?: emptyList()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Błąd usług: ${e.message}")
-            }
-        }
-    }
-
-    fun loadRooms(id: Long) {
-        viewModelScope.launch {
-            try {
-                val res = apiService.getRooms(id)
-                if (res.isSuccessful) {
-                    _rooms.value = res.body() ?: emptyList()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Błąd pokoi: ${e.message}")
             }
         }
     }

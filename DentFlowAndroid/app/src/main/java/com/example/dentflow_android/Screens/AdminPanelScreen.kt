@@ -23,16 +23,13 @@ import com.example.dentflow_android.data.ViewModel.AdminViewModel
 fun AdminPanelScreen(
     onNavigateToStaff: () -> Unit,
     onNavigateToPatients: () -> Unit,
+    onNavigateToCatalog: () -> Unit,
     viewModel: AdminViewModel = hiltViewModel()
 ) {
-    // Obserwujemy dynamiczne dane z ViewModelu
     val visitCount by viewModel.visitCount.collectAsState()
     val patientCount by viewModel.patientCount.collectAsState()
 
-    // --- KLUCZOWA POPRAWKA ---
-    // Nie przekazujemy już 1L. ViewModel sam pobierze tenantId z SharedPreferences.
     LaunchedEffect(Unit) {
-        Log.d("ADMIN_SCREEN", "Inicjalizacja statystyk panelu administratora")
         viewModel.loadStats()
     }
 
@@ -56,7 +53,6 @@ fun AdminPanelScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // --- STATYSTYKI ---
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -99,9 +95,7 @@ fun AdminPanelScreen(
                 AdminActionCard("Pacjenci", Icons.Default.ContactPage, "Baza danych", onNavigateToPatients)
             }
             item {
-                AdminActionCard("Usługi", Icons.Default.ListAlt, "Cennik", {
-                    Log.d("ADMIN_SCREEN", "Nawigacja do usług - stub")
-                })
+                AdminActionCard("Usługi", Icons.Default.ListAlt, "Cennik", onNavigateToCatalog)
             }
             item {
                 AdminActionCard("Ustawienia", Icons.Default.Settings, "Konfiguracja", {
@@ -111,8 +105,6 @@ fun AdminPanelScreen(
         }
     }
 }
-
-// --- FUNKCJE POMOCNICZE (KOMPONENTY) ---
 
 @Composable
 fun StatCard(

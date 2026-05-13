@@ -104,6 +104,20 @@ interface ApiService {
         @Body request: CreateAppointmentRequest
     ): Response<AppointmentResponse>
 
+    // DODANE METODY:
+    @GET("tenants/{tenantId}/appointments/{appointmentId}")
+    suspend fun getAppointmentDetails(
+        @Path("tenantId") tenantId: Long,
+        @Path("appointmentId") appointmentId: Long
+    ): Response<AppointmentResponse>
+
+    @PUT("tenants/{tenantId}/appointments/{appointmentId}")
+    suspend fun updateAppointment(
+        @Path("tenantId") tenantId: Long,
+        @Path("appointmentId") appointmentId: Long,
+        @Body request: UpdateAppointmentRequest
+    ): Response<AppointmentResponse>
+
     @POST("tenants/{tenantId}/appointments/{appointmentId}/complete")
     suspend fun completeAppointment(
         @Path("tenantId") tenantId: Long,
@@ -118,9 +132,28 @@ interface ApiService {
     // --- CATALOG (USŁUGI) ---
     @GET("tenants/{tenantId}/catalog")
     suspend fun getServices(
-        @Path("tenantId") tenantId: Long
+        @Path("tenantId") tenantId: Long,
+        @Query("activeOnly") activeOnly: Boolean = false
     ): Response<List<ServiceCatalogItemDTO>>
 
+    @POST("tenants/{tenantId}/catalog")
+    suspend fun createService(
+        @Path("tenantId") tenantId: Long,
+        @Body request: ServiceCatalogRequest
+    ): Response<ServiceCatalogItemDTO>
+
+    @PUT("tenants/{tenantId}/catalog/{id}")
+    suspend fun updateService(
+        @Path("tenantId") tenantId: Long,
+        @Path("id") id: Long,
+        @Body request: ServiceCatalogRequest
+    ): Response<ServiceCatalogItemDTO>
+
+    @DELETE("tenants/{tenantId}/catalog/{id}")
+    suspend fun deleteService(
+        @Path("tenantId") tenantId: Long,
+        @Path("id") id: Long
+    ): Response<Unit>
     // --- SCHEDULE SLOTS (GRAFIK - TERMINY) ---
     @GET("tenants/{tenantId}/schedule/slots")
     suspend fun getSlots(
@@ -192,6 +225,13 @@ interface ApiService {
         @Path("tenantId") tenantId: Long,
         @Path("userId") userId: Long
     ): Response<Unit>
+
+    @GET("tenants/{tenantId}/patients/{patientId}/visits")
+    suspend fun getPatientVisits(
+        @Path("tenantId") tenantId: Long,
+        @Path("patientId") patientId: Long,
+        @Query("status") status: String? = null
+    ): Response<List<AppointmentResponse>>
 
 
 }

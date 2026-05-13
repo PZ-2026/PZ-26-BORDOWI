@@ -26,8 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.dentflow_android.data.ViewModel.AppointmentViewModel
-import com.example.dentflow_android.data.remote.AppointmentResponse
+import com.example.dentflow_android.data.ViewModel.VisitViewModel
+import com.example.dentflow_android.data.ViewModel.VisitWithPatient
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -35,9 +35,9 @@ import java.util.Locale
 
 @Composable
 fun VisitsScreen(
-    viewModel: AppointmentViewModel = hiltViewModel()
+    viewModel: VisitViewModel = hiltViewModel()
 ) {
-    val appointments by viewModel.appointments.collectAsState()
+    val visits by viewModel.visits.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -45,13 +45,7 @@ fun VisitsScreen(
     var isHistoryMode by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedDate, isHistoryMode) {
-        if (isHistoryMode) {
-            // Zakładamy, że fetchAppointments bez daty lub z null pobierze wszystko
-            // Jeśli nie masz takiej metody, użyj daty z bardzo dalekiej przeszłości
-            viewModel.fetchAppointments(LocalDate.of(2000, 1, 1))
-        } else {
-            viewModel.fetchAppointments(selectedDate)
-        }
+        viewModel.refreshVisits()
     }
 
     Column(
@@ -66,13 +60,14 @@ fun VisitsScreen(
         ) {
             Column {
                 Text(
-                    text = if (isHistoryMode) "Pełna Historia" else "Terminarz",
+                    text = if (isHistoryMode) "Historia Wizyt" else "Kalendarz",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
                 if (!isHistoryMode) {
                     Text(
-                        text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pl"))).replaceFirstChar { it.uppercase() },
+                        text = currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("pl")))
+                            .replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -82,7 +77,7 @@ fun VisitsScreen(
             IconButton(onClick = { isHistoryMode = !isHistoryMode }) {
                 Icon(
                     imageVector = if (isHistoryMode) Icons.Default.CalendarMonth else Icons.Default.History,
-                    contentDescription = "Przełącz historię",
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -113,15 +108,15 @@ fun VisitsScreen(
             )
         }
 
-        Divider(modifier = Modifier.padding(vertical = 8.dp), thickness = 1.dp, color = Color.LightGray.copy(alpha = 0.3f))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), thickness = 1.dp, color = Color.LightGray.copy(alpha = 0.2f))
 
         if (isLoading) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-        } else if (appointments.isEmpty()) {
+        } else if (visits.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("Brak wizyt", color = Color.Gray)
+                Text("Brak zarejestrowanych wizyt", color = Color.Gray)
             }
         } else {
             LazyColumn(
@@ -129,10 +124,60 @@ fun VisitsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(appointments) { appointment ->
-                    UniversalVisitCard(appointment, showDate = isHistoryMode)
+                val displayList = if (isHistoryMode) {
+                    visits
+                } else {
+                    visits.filter { it.visit.startAt.startsWith(selectedDate.toString()) }
+                }
+
+                items(displayList) { item ->
+                    UniversalVisitCard(item, showDate = isHistoryMode)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun UniversalVisitCard(item: VisitWithPatient, showDate: Boolean = false) {
+    val appointment = item.visit
+    val patient = item.patient
+
+    val timeDisplay = try { appointment.startAt.substring(11, 16) } catch (e: Exception) { "--:--" }
+    val dateDisplay = try { appointment.startAt.substring(0, 10) } catch (e: Exception) { "" }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.width(70.dp)) {
+                Text(text = timeDisplay, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                if (showDate) {
+                    Text(text = dateDisplay, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = patient?.let { "${it.firstName} ${it.lastName}" } ?: "Pacjent ID: ${appointment.patientId}",
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Zabieg ID: ${appointment.serviceItemId}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+
+            val statusColor = when (appointment.status.uppercase()) {
+                "CONFIRMED" -> Color(0xFF4CAF50)
+                "COMPLETED" -> Color.LightGray
+                "CANCELLED" -> Color.Red
+                else -> Color(0xFFFF9800)
+            }
+            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(statusColor))
         }
     }
 }
@@ -151,19 +196,12 @@ fun CalendarGrid(
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Row(modifier = Modifier.fillMaxWidth()) {
             weekDays.forEach { day ->
-                Text(
-                    text = day,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                Text(text = day, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
         }
-
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(240.dp),
+            modifier = Modifier.height(220.dp),
             userScrollEnabled = false
         ) {
             items(firstDayOfMonth - 1) { Spacer(modifier = Modifier.fillMaxSize()) }
@@ -171,57 +209,15 @@ fun CalendarGrid(
                 val date = currentMonth.atDay(day)
                 val isSelected = date == selectedDate
                 val isToday = date == LocalDate.now()
-
                 Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .padding(4.dp)
-                        .clip(CircleShape)
+                    modifier = Modifier.aspectRatio(1f).padding(4.dp).clip(CircleShape)
                         .background(if (isSelected) MaterialTheme.colorScheme.primary else if (isToday) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                         .clickable { onDateSelected(date) },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = day.toString(),
-                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
-                    )
+                    Text(text = day.toString(), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface)
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun UniversalVisitCard(appointment: AppointmentResponse, showDate: Boolean = false) {
-    val timeDisplay = try { appointment.startAt.substring(11, 16) } catch (e: Exception) { "--:--" }
-    val dateDisplay = try { appointment.startAt.substring(0, 10) } catch (e: Exception) { "" }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.width(65.dp)) {
-                Text(text = timeDisplay, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                if (showDate) {
-                    Text(text = dateDisplay, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                }
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = "Leczenie ID: ${appointment.serviceItemId}", fontWeight = FontWeight.SemiBold)
-                Text(text = "Status: ${appointment.status}", style = MaterialTheme.typography.bodySmall)
-            }
-
-            val statusColor = when (appointment.status.uppercase()) {
-                "CONFIRMED" -> Color(0xFF4CAF50)
-                "COMPLETED" -> Color.Gray
-                "CANCELLED" -> Color.Red
-                else -> Color(0xFFFF9800)
-            }
-            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(statusColor))
         }
     }
 }

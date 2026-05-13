@@ -29,31 +29,37 @@ class AuthViewModel @Inject constructor(
             _errorMessage.value = null
             try {
                 val response = authService.login(request)
+
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
                     val token = body.token
 
                     if (!token.isNullOrBlank()) {
-                        // --- KLUCZOWA POPRAWKA: Zapisujemy wszystkie dane dynamiczne ---
                         prefs.edit().apply {
                             putString("jwt_token", token)
-                            putLong("tenant_id", body.tenantId) // Dynamiczne ID kliniki
-                            putLong("user_id", body.userId)     // ID zalogowanego użytkownika
+                            putLong("tenant_id", body.tenantId)
+                            putLong("user_id", body.userId)
                             apply()
                         }
-                        Log.d("AUTH_DEBUG", "Dane sesji (token, tenantId: ${body.tenantId}) zapisane.")
+                        Log.d("AUTH_DEBUG", "Zalogowano pomyślnie. TenantID: ${body.tenantId}")
+                        onSuccess(body.tenantId)
                     } else {
-                        Log.e("AUTH_DEBUG", "Serwer zwrócił sukces, ale token jest pusty!")
+                        _errorMessage.value = "Błąd: Serwer nie przesłał tokenu."
                     }
-
-                    onSuccess(body.tenantId)
                 } else {
-                    _errorMessage.value = "Błędny e-mail lub hasło"
-                    Log.e("AUTH_DEBUG", "Błąd logowania: ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("AUTH_DEBUG", "Błąd logowania. Kod: ${response.code()}, Body: $errorBody")
+
+                    _errorMessage.value = when (response.code()) {
+                        401 -> "Błędny e-mail lub hasło."
+                        403 -> "Dostęp zabroniony. Sprawdź konfigurację kliniki."
+                        500 -> "Błąd wewnętrzny serwera. Sprawdź logi bazy danych."
+                        else -> "Błąd autoryzacji: ${response.code()}"
+                    }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Błąd połączenia z serwerem"
-                e.printStackTrace()
+                _errorMessage.value = "Błąd połączenia. Upewnij się, że backend działa."
+                Log.e("AUTH_DEBUG", "Wyjątek podczas logowania: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -67,12 +73,21 @@ class AuthViewModel @Inject constructor(
             try {
                 val response = authService.register(request)
                 if (response.isSuccessful) {
+                    Log.d("AUTH_DEBUG", "Rejestracja zakończona sukcesem")
                     onSuccess()
                 } else {
-                    _errorMessage.value = "Rejestracja nieudana. Email może być zajęty."
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("AUTH_DEBUG", "Błąd rejestracji. Kod: ${response.code()}, Body: $errorBody")
+
+                    _errorMessage.value = when (response.code()) {
+                        409 -> "Ten adres e-mail jest już zarejestrowany."
+                        400 -> "Nieprawidłowe dane w formularzu."
+                        else -> "Rejestracja odrzucona (Kod: ${response.code()})"
+                    }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Błąd sieci: ${e.message}"
+                _errorMessage.value = "Błąd sieci: Brak odpowiedzi od serwera."
+                Log.e("AUTH_DEBUG", "Wyjątek podczas rejestracji: ${e.message}")
             } finally {
                 _isLoading.value = false
             }
@@ -80,13 +95,20 @@ class AuthViewModel @Inject constructor(
     }
 
     fun logout() {
-        // Czyszczenie wszystkich danych sesji
-        prefs.edit().apply {
-            remove("jwt_token")
-            remove("tenant_id")
-            remove("user_id")
-            apply()
+        viewModelScope.launch {
+            try {
+                authService.logout()
+            } catch (e: Exception) {
+                Log.e("AUTH_DEBUG", "Błąd przy wysyłaniu logout do API: ${e.message}")
+            } finally {
+                prefs.edit().apply {
+                    remove("jwt_token")
+                    remove("tenant_id")
+                    remove("user_id")
+                    apply()
+                }
+                Log.d("AUTH_DEBUG", "Wylogowano lokalnie i wyczyszczono dane sesji.")
+            }
         }
-        Log.d("AUTH_DEBUG", "Dane sesji usunięte - wylogowano.")
     }
 }

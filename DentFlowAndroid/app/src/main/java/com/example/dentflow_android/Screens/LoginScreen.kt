@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun LoginScreen(
-    onLoginSuccess: () -> Unit, // Zmieniono na () -> Unit, bo ID jest w sesji
+    onLoginSuccess: () -> Unit,
     onRegisterClick: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {

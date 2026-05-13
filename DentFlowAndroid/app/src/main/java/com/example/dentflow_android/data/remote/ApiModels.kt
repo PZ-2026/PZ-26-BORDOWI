@@ -10,6 +10,12 @@ data class TenantResponse(
     val status: String? = null,
     val locations: List<LocationResponse>? = emptyList()
 )
+data class ServiceCatalogRequest(
+    val name: String,
+    val durationMinutes: Int,
+    val priceCents: Int,
+    val active: Boolean = true
+)
 
 data class AddLocationRequest(
     val name: String,
@@ -214,4 +220,12 @@ data class CreateNotificationRequest(
     val userId: Long,
     val type: String,
     val message: String
+)
+
+data class UpdateAppointmentRequest(
+    val startAt: String,
+    val endAt: String,
+    val serviceItemId: Long,
+    val roomId: Long,
+    val notes: String
 )
