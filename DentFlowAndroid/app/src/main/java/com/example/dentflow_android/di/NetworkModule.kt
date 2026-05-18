@@ -49,10 +49,21 @@ object NetworkModule {
     @Provides
     @Singleton
     @Named("auth_retrofit")
-    fun provideAuthRetrofit(): Retrofit = Retrofit.Builder()
-        .baseUrl("http://10.0.2.2:8081/")
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
+    fun provideAuthRetrofit(@Named("auth_interceptor") authInterceptor: Interceptor): Retrofit {
+        val logging = HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+        val client = OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(logging)
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl("http://10.0.2.2:8081/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
 
     @Provides
     @Singleton

@@ -16,6 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TenantViewModel @Inject constructor(
     private val apiService: ApiService,
+    private val authService: AuthService,
     private val prefs: SharedPreferences
 ) : ViewModel() {
 
@@ -50,7 +51,6 @@ class TenantViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Używamy async/await lub po prostu odpalamy loadery
                 loadTenantData(id)
                 loadServices(id)
                 loadRooms(id)
@@ -102,6 +102,7 @@ class TenantViewModel @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val newTenant = response.body()!!
                     prefs.edit().putLong("tenant_id", newTenant.id).apply()
+                    assignTenantOnIdentityService(newTenant.id)
                     _tenantState.value = newTenant
                     loadAllTenantData()
                 } else {
@@ -113,6 +114,24 @@ class TenantViewModel @Inject constructor(
                 Log.e(TAG, "Wyjątek przy rejestracji: ${e.message}")
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    private fun assignTenantOnIdentityService(tenantId: Long) {
+        viewModelScope.launch {
+            try {
+                val response = authService.assignTenant(AssignTenantRequest(tenantId = tenantId))
+                if (response.isSuccessful && response.body() != null) {
+                    val authResponse = response.body()!!
+                    prefs.edit().putString("jwt_token", authResponse.token)
+                        .putLong("tenant_id", authResponse.tenantId)
+                        .apply()
+                } else {
+                    Log.e(TAG, "Błąd przypisywania tenanta w IdentityService: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Wyjątek przy przypisywaniu tenanta: ${e.message}")
             }
         }
     }
@@ -143,7 +162,7 @@ class TenantViewModel @Inject constructor(
                 val request = ServiceCatalogRequest(name, duration, priceCents, true)
                 val response = apiService.createService(tId, request)
                 if (response.isSuccessful) {
-                    loadServices(tId) // Odśwież listę po sukcesie
+                    loadServices(tId)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Błąd dodawania: ${e.message}")
@@ -181,7 +200,6 @@ class TenantViewModel @Inject constructor(
             try {
                 val response = apiService.deleteService(tId, serviceId)
                 if (response.isSuccessful) {
-                    // Usuwamy lokalnie z listy, żeby nie przeładowywać całości (szybsze UI)
                     _servicesState.value = _servicesState.value.filter { it.id != serviceId }
                 }
             } catch (e: Exception) {
@@ -189,8 +207,6 @@ class TenantViewModel @Inject constructor(
             }
         }
     }
-
-
 
     fun loadRooms(id: Long) {
         viewModelScope.launch {
