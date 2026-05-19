@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Publiczne: rejestracja gabinetu i Swagger
-                        .requestMatchers("/tenants/register", "/swagger-ui/**", "/api-docs/**").permitAll()
+                        .requestMatchers("/tenants/register", "/swagger-ui/**", "/api-docs/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

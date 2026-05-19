@@ -3,6 +3,7 @@ package com.example.dentflow_android.di
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.dentflow_android.BuildConfig
 import com.example.dentflow_android.data.remote.ApiService
 import com.example.dentflow_android.data.remote.AuthService
 import dagger.Module
@@ -60,7 +61,7 @@ object NetworkModule {
     @Singleton
     @Named("auth_retrofit")
     fun provideAuthRetrofit(): Retrofit = Retrofit.Builder()
-        .baseUrl("http://10.0.2.2:8081/")
+        .baseUrl(BuildConfig.AUTH_BASE_URL)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
@@ -80,7 +81,7 @@ object NetworkModule {
             .build()
 
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8080/")
+            .baseUrl(BuildConfig.CORE_BASE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     // Używamy aliasów, które już masz w projekcie
     alias(libs.plugins.android.application)
@@ -24,6 +26,18 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // --- Load properties from local.properties ---
+        val properties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(localPropertiesFile.inputStream())
+        }
+        val authUrl = properties.getProperty("auth.base.url", "\"http://10.0.2.2:8081/\"")
+        val coreUrl = properties.getProperty("core.base.url", "\"http://10.0.2.2:8080/\"")
+
+        buildConfigField("String", "AUTH_BASE_URL", authUrl)
+        buildConfigField("String", "CORE_BASE_URL", coreUrl)
     }
 
     buildTypes {
@@ -48,6 +62,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
